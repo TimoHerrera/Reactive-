@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { AccessRequestCard } from "@/components/coach/AccessRequestCard";
 import { InlineLoading } from "@/components/Loading";
+import { QueryError } from "@/components/QueryError";
 import { Avatar, FilterChip, Input, PillButton, StatusBadge } from "@/components/ui";
 import { matchesClient, sortClients, summarizeClient, type ClientSummary } from "@/lib/coach/clients";
 import { data } from "@/lib/data";
@@ -102,8 +103,14 @@ export function ClientesList() {
               ))}
             </ul>
           )
-        ) : q.loading && !q.data ? (
-          <InlineLoading />
+        ) : !q.data ? (
+          q.error ? (
+            <div className="mt-6">
+              <QueryError what="los clientes" onRetry={() => void q.reload()} />
+            </div>
+          ) : (
+            <InlineLoading />
+          )
         ) : list.length === 0 ? (
           <div className="mt-10 text-center">
             <p className="text-muted">

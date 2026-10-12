@@ -1,5 +1,6 @@
 import { normalizeText } from "@/lib/text";
 import { encodeMockSession, MOCK_SESSION_COOKIE } from "@/lib/auth/cookies";
+import { emitSessionChange } from "@/lib/auth/session-events";
 import type { DataSource } from "../repositories";
 import { DEMO_PASSWORD } from "../seed";
 import { isStaff, type AccessRequest, type Profile, type RoutineTree, type SessionUser } from "../types";
@@ -65,11 +66,13 @@ export const mockDataSource: DataSource = {
       }
       window.localStorage.setItem(SESSION_KEY, p.id);
       setSessionCookie(encodeMockSession(p.role, p.id));
+      emitSessionChange();
       return { ok: true, user: { id: p.id, role: p.role, fullName: p.fullName, email: p.email } };
     },
     async signOut() {
       window.localStorage.removeItem(SESSION_KEY);
       setSessionCookie(null);
+      emitSessionChange();
     },
     async requestPasswordReset() {
       await delay(null, 400);
@@ -93,6 +96,7 @@ export const mockDataSource: DataSource = {
       if (!user) return delay(null, 200);
       window.localStorage.setItem(SESSION_KEY, user.id);
       setSessionCookie(encodeMockSession(user.role, user.id));
+      emitSessionChange();
       return delay({ id: user.id, role: user.role, fullName: user.fullName, email: user.email }, 200);
     },
   },

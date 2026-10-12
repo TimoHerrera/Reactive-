@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { CoachMenu } from "@/components/coach/CoachMenu";
 import { InlineLoading } from "@/components/Loading";
+import { QueryError } from "@/components/QueryError";
 import { useSession } from "@/components/SessionProvider";
 import { Avatar, LogoMark, PillButton } from "@/components/ui";
 import { cn } from "@/lib/cn";
@@ -85,6 +86,7 @@ export default function PanelPage() {
       </header>
 
       <div className="space-y-3 px-gutter">
+        {q.error && !q.data && <QueryError what="el panel" onRetry={() => void q.reload()} />}
         <div className="grid grid-cols-3 gap-2">
           {metrics.map((m) => (
             <Link
@@ -142,9 +144,9 @@ export default function PanelPage() {
             </h2>
             <span className="text-small text-muted">Últimos días</span>
           </div>
-          {q.loading && !q.data ? (
-            <InlineLoading />
-          ) : q.data?.activity.length ? (
+          {!q.data ? (
+            q.error ? null : <InlineLoading />
+          ) : q.data.activity.length ? (
             <ul className="mt-3 overflow-hidden rounded-lg border border-line bg-surface">
               {q.data.activity.map((a) => (
                 <li key={a.key} className="border-b border-line last:border-0">

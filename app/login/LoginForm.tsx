@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { AuthHeader } from "@/components/AuthHeader";
 import { Input, PillButton } from "@/components/ui";
 import { data } from "@/lib/data";
 import { DEMO_PASSWORD, IDS } from "@/lib/data/seed";
 import { homeForRole } from "@/lib/auth/cookies";
+import { hardNavigate } from "@/lib/auth/session-events";
 import { getDb } from "@/lib/data/mock/store";
 
 function safeNext(next: string | null, home: string) {
@@ -18,7 +19,6 @@ function safeNext(next: string | null, home: string) {
 }
 
 export function LoginForm() {
-  const router = useRouter();
   const params = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -37,8 +37,8 @@ export function LoginForm() {
       setBusy(false);
       return;
     }
-    router.replace(safeNext(params.get("next"), homeForRole(res.user.role)));
-    router.refresh();
+    // Recarga real: no queda nada en memoria de una sesión anterior.
+    hardNavigate(safeNext(params.get("next"), homeForRole(res.user.role)));
   }
 
   function onSubmit(ev: FormEvent) {

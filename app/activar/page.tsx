@@ -1,17 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState, type FormEvent } from "react";
 import { AuthHeader } from "@/components/AuthHeader";
 import { Loading } from "@/components/Loading";
 import { Input, PillButton } from "@/components/ui";
 import { homeForRole } from "@/lib/auth/cookies";
+import { hardNavigate } from "@/lib/auth/session-events";
 import { data, type SessionUser } from "@/lib/data";
 
 /** Destino del link de invitación: el cliente crea su contraseña y entra directo a Hoy. */
 function Activar() {
-  const router = useRouter();
   const params = useSearchParams();
   const token = params.get("token");
   const [user, setUser] = useState<SessionUser | null | undefined>(undefined);
@@ -35,8 +35,7 @@ function Activar() {
     setError(null);
     try {
       await data.auth.updatePassword(pwd);
-      router.replace(user ? homeForRole(user.role) : "/app");
-      router.refresh();
+      hardNavigate(user ? homeForRole(user.role) : "/app");
     } catch {
       setError("No pudimos guardar la contraseña. Pedile a tu profe un link nuevo.");
       setBusy(false);
