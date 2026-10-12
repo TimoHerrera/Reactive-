@@ -26,21 +26,84 @@ npm run dev                  # http://localhost:3000
 | `npm run lint` | ESLint |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm test` | Tests unitarios (Vitest) |
+| `npm run db:seed-sql` | Regenera `supabase/seed.sql` desde `lib/data/seed.ts` |
+
+## Modo mock (sin Supabase)
+
+Con `NEXT_PUBLIC_DATA_SOURCE=mock` la app usa datos de demo guardados en el `localStorage` del navegador (sembrados desde `lib/data/seed.ts`). Funciona igual en local y en los previews de Vercel.
+
+- En `/login` aparece **«Modo demo · acceso rápido»**: Martina (cliente), Nico (profe) o Admin.
+- También se puede ingresar con el email de cualquier usuario del seed (`*@reactive.test`) y la contraseña `DEMO_PASSWORD` de `lib/data/seed.ts`.
+- Panel del profe → **«Restablecer datos demo»** vuelve al seed.
+- Las fechas del seed son relativas a hoy, así que la demo no envejece.
+
+## Arquitectura de datos
+
+- `lib/data/types.ts`: tipos de dominio. `lib/data/repositories.ts`: interfaces (`DataSource`).
+- `lib/data/mock`: implementación en `localStorage` (videos en IndexedDB).
+- `lib/data/supabase`: implementación con supabase-js. La seguridad la da RLS; la subida de videos usa TUS (reanudable).
+- `lib/data/index.ts` elige según `NEXT_PUBLIC_DATA_SOURCE`. Las pantallas solo usan `data.*`.
+- Lo que necesita la service role key (invitar clientes, sumar profes) está en server actions: `app/actions/clients.ts`.
+- `middleware.ts` protege `/app` (cliente; el staff también puede entrar para «Ver como») y `/coach` (solo profe/admin).
+
+## Supabase
+
+### 1. Crear el proyecto
+
+1. En [supabase.com](https://supabase.com), creá un proyecto (región São Paulo, la más cercana).
+2. En **Project Settings → API**, copiá la URL, la `anon key` y la `service_role key` a `.env.local` (y a Vercel):
+   ```
+   NEXT_PUBLIC_DATA_SOURCE=supabase
+   NEXT_PUBLIC_SUPABASE_URL=...
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+   SUPABASE_SERVICE_ROLE_KEY=...      # solo servidor, nunca con NEXT_PUBLIC_
+   NEXT_PUBLIC_SITE_URL=https://<tu-dominio>
+   ```
+3. En **Authentication → URL Configuration**, agregá `<NEXT_PUBLIC_SITE_URL>/auth/callback` a las Redirect URLs (también la de localhost y la de previews de Vercel: `https://*-reactive4.vercel.app/auth/callback`).
+4. En **Authentication → Providers → Email**, desactivá **«Allow new users to sign up»** (no hay registro público: los clientes se invitan).
+
+### 2. Correr las migraciones
+
+Opción A, con la CLI de Supabase:
+
+```bash
+npx supabase login
+npx supabase init        # solo la primera vez: crea supabase/config.toml (no toca las migraciones)
+npx supabase link --project-ref <ref-del-proyecto>
+npx supabase db push
+```
+
+Opción B, a mano: en **SQL Editor**, pegá y ejecutá en orden los archivos de `supabase/migrations/` (`0001_schema.sql` → `0004_functions.sql`).
+
+### 3. Datos de demo (opcional, SOLO staging)
+
+`supabase/seed.sql` crea los usuarios y datos del diseño con una contraseña conocida. **No lo corras en producción.** Para un entorno de prueba: SQL Editor → pegar `supabase/seed.sql` → Run. Si cambiás `lib/data/seed.ts`, regeneralo con `npm run db:seed-sql`.
+
+### 4. Crear el primer admin
+
+1. **Authentication → Users → Add user → Create new user**: email y contraseña del admin, con «Auto Confirm User» tildado.
+2. En **SQL Editor**:
+   ```sql
+   insert into public.profiles (id, role, full_name, email)
+   select id, 'admin', 'Nombre Apellido', email
+   from auth.users where email = 'admin@tu-dominio.com';
+   ```
+3. Ingresá a la app con ese usuario. Desde ahí el admin suma profes, y los profes invitan clientes con «+ Cliente».
 
 ## Rutas útiles
 
-- `/`: splash
+- `/`: splash · `/login` · `/recuperar` · `/nueva-contrasena`
+- `/app`: cliente (Hoy · Mi Rutina · Ejercicios · Perfil)
+- `/coach`: profe/admin (Panel · Clientes · Rutinas · Ejercicios)
 - `/dev/ui`: catálogo de componentes del design system
 
 ## Estado por fase
 
 - [x] **F0**: setup, tokens, fuentes, PWA y `/dev/ui`
-- [ ] F1: capa de datos (mock), auth simulada por rol, layouts, migraciones/RLS/seed de Supabase
+- [x] **F1**: capa de datos (mock), auth simulada por rol, layouts, migraciones/RLS/seed de Supabase
 - [ ] F2: biblioteca de ejercicios con subida de video
 - [ ] F3: experiencia del cliente
 - [ ] F4: carga manual de rutinas
 - [ ] F5: importación de Excel
 - [ ] F6: Panel, Clientes, Rutinas y pulido
 - [ ] F7: E2E con Playwright y deploy
-
-Las secciones de Supabase (migraciones, seed y primer admin) se completan en F1.
