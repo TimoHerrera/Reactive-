@@ -1,6 +1,6 @@
 import { cn } from "@/lib/cn";
 
-export type PreviewRowStatus = "ok-video" | "ok-sin-video" | "revisar" | "no-encontrado";
+export type PreviewRowStatus = "ok-video" | "ok-sin-video" | "revisar" | "no-encontrado" | "sin-vincular";
 
 export type PreviewRow = {
   key: string;
@@ -28,6 +28,8 @@ function StatusCell({ row }: { row: PreviewRow }) {
       );
     case "no-encontrado":
       return <span className="font-semibold text-danger-ink">✕ No encontrado</span>;
+    case "sin-vincular":
+      return <span className="font-semibold text-muted">— Sin vincular (sin video)</span>;
   }
 }
 
