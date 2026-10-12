@@ -98,6 +98,14 @@ Opción B, a mano: en **SQL Editor**, pegá y ejecutá en orden los archivos de 
    ```
 3. Ingresá a la app con ese usuario. Desde ahí el admin suma profes, y los profes invitan clientes con «+ Cliente».
 
+## Importar Excel
+
+- Plantilla: columnas `Día | Bloque | Orden | Ejercicio | Series | Reps | Carga | Descanso | Notas` (se descarga desde la app).
+- También se lee el formato **por bloques**: una hoja por día; cada bloque empieza con una fila `Bloque 1 | Repeticiones | Series | Carga | Pausa`, sigue una fila por ejercicio y una fila con la pausa («2 minutos») que se toma como descanso del bloque. El texto suelto fuera de los bloques se avisa y no se importa.
+- Se aceptan `.xlsx` y `.csv` de hasta 5 MB. Los encabezados se comparan sin mayúsculas ni acentos.
+- Matching contra la biblioteca: igualdad exacta con el nombre o un alias → reconocido; parecido (fuse.js, `DEFAULT_THRESHOLD` en `lib/import/match.ts`) → «¿Quisiste decir…?»; si no, no encontrado. Al vincular, el texto original se guarda como alias.
+- Planillas de prueba en `docs/ejemplos/` (regenerar con `npx tsx scripts/generate-import-examples.ts`).
+
 ## Rutas útiles
 
 - `/`: splash · `/login` · `/recuperar` · `/nueva-contrasena`
@@ -112,6 +120,6 @@ Opción B, a mano: en **SQL Editor**, pegá y ejecutá en orden los archivos de 
 - [x] **F2**: biblioteca de ejercicios con subida de video
 - [x] **F3**: experiencia del cliente
 - [x] **F4**: carga manual de rutinas (3 pasos, plantillas, duplicar y editar) + lista de Rutinas
-- [ ] F5: importación de Excel
+- [x] **F5**: importación de Excel (plantilla, lectura, errores, matching con alias y vista previa)
 - [ ] F6: Panel, Clientes, Rutinas y pulido
 - [ ] F7: E2E con Playwright y deploy

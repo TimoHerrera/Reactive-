@@ -342,3 +342,32 @@ export function itemSummary(it: DraftItem): string {
   const sr = it.sets && it.reps ? `${it.sets} × ${it.reps}` : it.reps || (it.sets ? `${it.sets} series` : "");
   return [sr, it.load].filter(Boolean).join(" · ");
 }
+
+/**
+ * Vincula un ítem a un ejercicio de la biblioteca y, de paso, todos los ítems sin vincular
+ * con el mismo texto (ej. «Banda lateral» repetida en varios días).
+ */
+export function linkItems(
+  d: RoutineDraft,
+  itemKey: string,
+  exercise: Pick<Exercise, "id" | "name">,
+  normalize: (s: string) => string,
+): RoutineDraft {
+  const target = d.days.flatMap((day) => day.blocks.flatMap((b) => b.items)).find((it) => it.key === itemKey);
+  if (!target) return d;
+  const raw = normalize(target.rawName);
+  return {
+    ...d,
+    days: d.days.map((day) => ({
+      ...day,
+      blocks: day.blocks.map((b) => ({
+        ...b,
+        items: b.items.map((it) =>
+          it.key === itemKey || (!it.exerciseId && normalize(it.rawName) === raw)
+            ? { ...it, exerciseId: exercise.id, rawName: exercise.name }
+            : it,
+        ),
+      })),
+    })),
+  };
+}

@@ -168,3 +168,23 @@ describe("conversión árbol ↔ borrador", () => {
     expect(t.days[1]!.blocks).toEqual([]);
   });
 });
+
+describe("vincular después", () => {
+  it("vincula el ítem y los sin vincular con el mismo texto en otros días", async () => {
+    const { linkItems } = await import("./draft");
+    const { normalizeText } = await import("@/lib/text");
+    let d = emptyDraft(TODAY);
+    const [a, b] = d.days;
+    const i1 = blankItem(null, "Banda lateral");
+    const i2 = blankItem(null, "banda  lateral");
+    const i3 = blankItem(null, "Otra cosa");
+    d = addItem(d, a!.key, a!.blocks[0]!.key, i1);
+    d = addItem(d, b!.key, b!.blocks[1]!.key, i2);
+    d = addItem(d, b!.key, b!.blocks[1]!.key, i3);
+    const hip = ex("Hip thrust");
+    d = linkItems(d, i1.key, hip, normalizeText);
+    expect(d.days[0]!.blocks[0]!.items[0]).toMatchObject({ exerciseId: hip.id, rawName: "Hip thrust" });
+    expect(d.days[1]!.blocks[1]!.items[0]).toMatchObject({ exerciseId: hip.id });
+    expect(d.days[1]!.blocks[1]!.items[1]!.exerciseId).toBeNull();
+  });
+});
