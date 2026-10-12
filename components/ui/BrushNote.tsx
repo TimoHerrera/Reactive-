@@ -25,8 +25,8 @@ export function BrushNote({
         />
       </svg>
       <div className="relative">
-        <p className="display text-[1.25rem]">{title}</p>
-        <div className="mt-1 text-body font-medium leading-snug">{children}</div>
+        {title && <p className="display text-[1.25rem]">{title}</p>}
+        <div className={cn("text-body font-medium leading-snug", title && "mt-1")}>{children}</div>
       </div>
     </div>
   );

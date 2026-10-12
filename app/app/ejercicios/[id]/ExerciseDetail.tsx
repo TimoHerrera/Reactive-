@@ -18,6 +18,8 @@ import { useQuery } from "@/lib/hooks";
 import { pad2 } from "@/components/ui/ExerciseCard";
 import { currentRoutine } from "@/lib/routine/status";
 import { locateItem, type LocatedItem } from "@/lib/routine/locate";
+import { cameFromRutina } from "@/lib/routine/scroll";
+import { useViewedClient } from "@/components/client/useViewedClient";
 
 function useLocatedItem(clientId: string | undefined, itemId: string | null) {
   return useQuery(async (): Promise<LocatedItem | null> => {
@@ -85,7 +87,8 @@ export function ExerciseDetail() {
   const itemId = params.get("item");
 
   const exercise = useQuery(() => data.exercises.get(id), [id]);
-  const located = useLocatedItem(user && !isStaff(user.role) ? user.id : undefined, fromRutina ? itemId : null);
+  const viewed = useViewedClient();
+  const located = useLocatedItem(viewed.clientId ?? undefined, fromRutina ? itemId : null);
   const video = useVideoUrl(exercise.data?.videoPath);
   const poster = useVideoUrl(exercise.data?.videoPosterPath);
 
@@ -140,9 +143,10 @@ export function ExerciseDetail() {
     : "/app/ejercicios";
   const backLabel = fromRutina ? "Volver a mi rutina" : "Volver a ejercicios";
   const goBack = () => {
-    // Si venimos de la rutina dentro de la app, «atrás» conserva el estado; si se abrió directo, navegamos.
-    if (fromRutina && window.history.length > 1 && document.referrer.startsWith(window.location.origin)) router.back();
-    else router.push(backHref);
+    // Si venimos de Mi Rutina dentro de la app, «atrás» del historial; si se abrió directo, navegamos.
+    // En los dos casos Mi Rutina restaura el día y el scroll (lib/routine/scroll.ts).
+    if (fromRutina && cameFromRutina()) router.back();
+    else router.replace(backHref);
   };
 
   const backButton = (

@@ -13,6 +13,12 @@ type Props = {
   note?: string;
   done?: boolean;
   onToggle?: () => void;
+  /** Se llama al tocar el nombre (antes de navegar al video). */
+  onOpen?: () => void;
+  /** Solo lectura: muestra el estado sin botón (ej. profe en «Ver como»). */
+  readOnly?: boolean;
+  /** Resaltado breve al volver del video. */
+  highlight?: boolean;
   id?: string;
   className?: string;
 };
@@ -22,10 +28,24 @@ export function pad2(n: number) {
 }
 
 // Card de ejercicio · con video / sin video / hecho
-export function ExerciseCard({ number, name, href, chips = [], note, done, onToggle, id, className }: Props) {
+export function ExerciseCard({
+  number,
+  name,
+  href,
+  chips = [],
+  note,
+  done,
+  onToggle,
+  onOpen,
+  readOnly,
+  highlight,
+  id,
+  className,
+}: Props) {
   const nameEl = href ? (
     <Link
       href={href}
+      onClick={onOpen}
       className={cn(
         "group -my-2 flex min-h-[44px] w-full items-center gap-2 py-2 text-left",
         done ? "text-title" : "text-ink",
@@ -58,8 +78,9 @@ export function ExerciseCard({ number, name, href, chips = [], note, done, onTog
     <article
       id={id}
       className={cn(
-        "flex gap-3 rounded-lg border border-line p-4 transition-colors",
-        done ? "bg-surface/60" : "bg-surface",
+        "flex scroll-mt-48 gap-3 rounded-lg border p-4 transition-[background-color,border-color,box-shadow] duration-500",
+        done ? "border-success/35 bg-surface/60" : "border-line bg-surface",
+        highlight && "border-accent ring-2 ring-accent/60",
         className,
       )}
     >
@@ -102,6 +123,18 @@ export function ExerciseCard({ number, name, href, chips = [], note, done, onTog
         >
           <IconCheck className="h-5 w-5" />
         </button>
+      )}
+      {onToggle === undefined && readOnly && (
+        <span
+          role="img"
+          aria-label={done ? "Hecho" : "Sin hacer"}
+          className={cn(
+            "mt-6 flex h-12 w-12 shrink-0 items-center justify-center self-start rounded-full",
+            done ? "bg-success/80 text-bg" : "border-2 border-dashed border-line text-transparent",
+          )}
+        >
+          <IconCheck className="h-5 w-5" />
+        </span>
       )}
     </article>
   );

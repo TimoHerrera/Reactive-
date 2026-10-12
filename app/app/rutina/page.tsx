@@ -1,7 +1,14 @@
-"use client";
+import { Suspense } from "react";
+import type { Metadata } from "next";
+import { Loading } from "@/components/Loading";
+import { RutinaView } from "./RutinaView";
 
-import { PagePlaceholder } from "@/components/PagePlaceholder";
+export const metadata: Metadata = { title: "Mi rutina" };
 
 export default function MiRutinaPage() {
-  return <PagePlaceholder kicker="Mi rutina" title="Mi rutina" phase="F3" />;
+  return (
+    <Suspense fallback={<Loading />}>
+      <RutinaView />
+    </Suspense>
+  );
 }
