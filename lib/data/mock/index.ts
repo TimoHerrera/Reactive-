@@ -2,11 +2,28 @@ import { normalizeText } from "@/lib/text";
 import { encodeMockSession, MOCK_SESSION_COOKIE } from "@/lib/auth/cookies";
 import type { DataSource } from "../repositories";
 import { DEMO_PASSWORD } from "../seed";
-import { isStaff, type Profile, type RoutineTree, type SessionUser } from "../types";
+import { isStaff, type AccessRequest, type Profile, type RoutineTree, type SessionUser } from "../types";
+import {
+  cleanAccessRequest,
+  duplicateReason,
+  isRateLimited,
+  MESSAGES,
+  validateAccessRequest,
+} from "@/lib/access/rules";
 import { delay, getDb, mutate, uuid } from "./store";
 import { mockVideos } from "./videos";
 
 const SESSION_KEY = "reactive-mock-session";
+const PASSWORDS_KEY = "reactive-mock-passwords";
+
+/** Contraseñas creadas en /activar o /nueva-contrasena (solo modo demo, en este navegador). */
+function storedPasswords(): Record<string, string> {
+  try {
+    return JSON.parse(window.localStorage.getItem(PASSWORDS_KEY) ?? "{}") as Record<string, string>;
+  } catch {
+    return {};
+  }
+}
 const now = () => new Date().toISOString();
 
 function currentUser(): SessionUser | null {
@@ -43,7 +60,9 @@ export const mockDataSource: DataSource = {
     async signIn(email, password) {
       const p = getDb().profiles.find((x) => x.email.toLowerCase() === email.trim().toLowerCase());
       await delay(null, 350);
-      if (!p || password !== DEMO_PASSWORD) return { ok: false, error: "Email o contraseña incorrectos." };
+      if (!p || (password !== DEMO_PASSWORD && storedPasswords()[p.id] !== password)) {
+        return { ok: false, error: "Email o contraseña incorrectos." };
+      }
       window.localStorage.setItem(SESSION_KEY, p.id);
       setSessionCookie(encodeMockSession(p.role, p.id));
       return { ok: true, user: { id: p.id, role: p.role, fullName: p.fullName, email: p.email } };
@@ -55,8 +74,26 @@ export const mockDataSource: DataSource = {
     async requestPasswordReset() {
       await delay(null, 400);
     },
-    async updatePassword() {
+    async updatePassword(password) {
+      const me = currentUser();
+      if (me) window.localStorage.setItem(PASSWORDS_KEY, JSON.stringify({ ...storedPasswords(), [me.id]: password }));
       await delay(null, 400);
+    },
+    async activate(token) {
+      if (!token) return delay(currentUser(), 0);
+      const user = mutate((db) => {
+        const act = db.activations.find((a) => a.token === token);
+        const p = act ? db.profiles.find((x) => x.id === act.userId) : null;
+        if (!act || !p) return null;
+        // Un solo uso (con 10 min de gracia por si se recarga la página).
+        if (act.usedAt && Date.now() - new Date(act.usedAt).getTime() > 10 * 60_000) return null;
+        act.usedAt ??= now();
+        return p;
+      });
+      if (!user) return delay(null, 200);
+      window.localStorage.setItem(SESSION_KEY, user.id);
+      setSessionCookie(encodeMockSession(user.role, user.id));
+      return delay({ id: user.id, role: user.role, fullName: user.fullName, email: user.email }, 200);
     },
   },
 
@@ -405,4 +442,97 @@ export const mockDataSource: DataSource = {
   },
 
   videos: mockVideos,
+
+  accessRequests: {
+    async listCoaches() {
+      return delay(
+        getDb()
+          .profiles.filter((p) => p.role === "coach")
+          .map((p) => ({ id: p.id, fullName: p.fullName, title: p.title }))
+          .sort((a, b) => a.fullName.localeCompare(b.fullName, "es")),
+      );
+    },
+    async submit(input) {
+      await delay(null, 400);
+      if (input.website) return { ok: false, reason: "spam", message: MESSAGES.spam };
+      const errors = validateAccessRequest(input);
+      if (Object.keys(errors).length) return { ok: false, reason: "invalid", errors };
+      const db = getDb();
+      const dup = duplicateReason(input.email, db.accessRequests, db.profiles.map((p) => p.email));
+      if (dup) return { ok: false, reason: dup, message: MESSAGES[dup] };
+      // En el navegador no hay IP: el límite del mock es por email.
+      if (isRateLimited(db.accessRequests, input.email, null)) {
+        return { ok: false, reason: "rate-limited", message: MESSAGES["rate-limited"] };
+      }
+      const req: AccessRequest = {
+        id: uuid(),
+        ...cleanAccessRequest(input),
+        status: "pending",
+        createdAt: now(),
+        reviewedBy: null,
+        reviewedAt: null,
+        rejectReason: null,
+      };
+      mutate((d) => {
+        d.accessRequests.push(req);
+      });
+      return { ok: true, id: req.id };
+    },
+    async list(status = "pending") {
+      const me = currentUser();
+      if (!me || !isStaff(me.role)) return delay([]);
+      return delay(
+        getDb()
+          .accessRequests.filter((r) => r.status === status)
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+      );
+    },
+    async approve(id) {
+      const me = currentUser();
+      if (!me || !isStaff(me.role)) throw new Error("Solo profes");
+      const result = mutate((db) => {
+        const r = db.accessRequests.find((x) => x.id === id) ?? notFound("Solicitud");
+        if (r.status !== "pending") throw new Error("Esta solicitud ya fue revisada.");
+        if (db.profiles.some((p) => p.email.toLowerCase() === r.email)) throw new Error("Ya existe una cuenta con ese email.");
+        const profile: Profile = {
+          id: uuid(),
+          role: "client",
+          fullName: r.fullName,
+          email: r.email,
+          phone: r.phone,
+          title: null,
+          sport: null,
+          caseType: r.caseType,
+          caseDetail: null,
+          goal: r.message,
+          coachId: r.requestedCoachId ?? me.id,
+          clientSince: now().slice(0, 10),
+          createdAt: now(),
+        };
+        db.profiles.push(profile);
+        r.status = "approved";
+        r.reviewedBy = me.id;
+        r.reviewedAt = now();
+        const token = uuid();
+        db.activations.push({ token, userId: profile.id, createdAt: now(), usedAt: null });
+        return { profile, token };
+      });
+      const origin = typeof window !== "undefined" ? window.location.origin : "";
+      return delay({ profile: result.profile, activationLink: `${origin}/activar?token=${result.token}` });
+    },
+    async reject(id, reason) {
+      const me = currentUser();
+      if (!me || !isStaff(me.role)) throw new Error("Solo profes");
+      return delay(
+        mutate((db) => {
+          const r = db.accessRequests.find((x) => x.id === id) ?? notFound("Solicitud");
+          r.status = "rejected";
+          r.reviewedBy = me.id;
+          r.reviewedAt = now();
+          r.rejectReason = reason?.trim() || null;
+          return r;
+        }),
+      );
+    },
+  },
 };

@@ -31,12 +31,13 @@ export default function PanelPage() {
   const { user } = useSession();
   const q = useQuery(async () => {
     const since = new Date(Date.now() - 8 * 86_400_000).toISOString();
-    const [clients, routines, exercises, sessions, views] = await Promise.all([
+    const [clients, routines, exercises, sessions, views, requests] = await Promise.all([
       data.profiles.listClients(),
       data.routines.list(),
       data.exercises.list(),
       data.sessions.list({ since }),
       data.views.list({ since }),
+      data.accessRequests.list("pending"),
     ]);
     const checks = await data.sessions.listChecks(sessions.map((s) => s.id));
     const ids = [...new Set(sessions.map((s) => s.routineId))];
@@ -48,6 +49,8 @@ export default function PanelPage() {
       activos: clients.filter((c) => clientRoutineFilter(byClient(c.id)) !== "sin-rutina").length,
       vencen: routines.filter((r) => r.clientId && routineStatus(r) === "por-vencer").length,
       sinVideo: exercises.filter((e) => !hasVideo(e)).length,
+      solicitudes: requests.length,
+      ultimaSolicitud: requests[0]?.fullName ?? null,
       activity: buildActivity({
         clients,
         routines,
@@ -99,6 +102,24 @@ export default function PanelPage() {
             </Link>
           ))}
         </div>
+
+        <Link
+          href="/coach/clientes?filtro=solicitudes"
+          className={cn(
+            "flex min-h-[64px] items-center justify-between gap-3 rounded-lg border px-4 py-3",
+            (q.data?.solicitudes ?? 0) > 0 ? "border-warning bg-warning/10 hover:bg-warning/15" : "border-line bg-surface hover:bg-surface-2",
+          )}
+        >
+          <span className="min-w-0">
+            <span className="block text-title-sm">Solicitudes de acceso ({q.data?.solicitudes ?? "–"})</span>
+            <span className="block truncate text-small text-muted">
+              {(q.data?.solicitudes ?? 0) > 0
+                ? `${q.data!.ultimaSolicitud}${q.data!.solicitudes > 1 ? ` y ${q.data!.solicitudes - 1} más` : ""} quiere${q.data!.solicitudes > 1 ? "n" : ""} entrar`
+                : "Nadie esperando por ahora"}
+            </span>
+          </span>
+          <span aria-hidden="true" className="shrink-0 text-[1.25rem]">→</span>
+        </Link>
 
         <PillButton href="/coach/rutinas/nueva" arrow block>
           + Nueva rutina

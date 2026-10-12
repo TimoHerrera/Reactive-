@@ -1,6 +1,7 @@
 // Datos de demo del diseño. Fuente única para el mock (localStorage) y para supabase/seed.sql
 // (scripts/generate-seed-sql.ts). Las fechas son relativas a «hoy» para que la demo no envejezca.
 import type {
+  AccessRequest,
   CoachNote,
   Exercise,
   ExerciseCategory,
@@ -47,6 +48,9 @@ export interface Db {
   workoutSessions: WorkoutSession[];
   itemChecks: ItemCheck[];
   exerciseViews: ExerciseView[];
+  accessRequests: (AccessRequest & { ipHash?: string | null })[];
+  /** Solo mock: invitaciones simuladas (token → usuario). */
+  activations: { token: string; userId: string; createdAt: string; usedAt: string | null }[];
 }
 
 // ── Ejercicios ─────────────────────────────────────────────────────
@@ -703,6 +707,37 @@ export function buildSeed(today: string = todayISO(), now: Date = new Date()): D
     viewedAt: ts(-1, 3 - i),
   }));
 
+  const accessRequests: AccessRequest[] = [
+    {
+      id: seedId(9, 1),
+      fullName: "Paula D.",
+      email: "paula@reactive.test",
+      phone: "+54 9 11 5555-0120",
+      requestedCoachId: IDS.nico,
+      caseType: "lesion_deportiva",
+      message: "Me esguincé la rodilla jugando al vóley. Me recomendó una amiga.",
+      status: "pending",
+      createdAt: ts(0, 5),
+      reviewedBy: null,
+      reviewedAt: null,
+      rejectReason: null,
+    },
+    {
+      id: seedId(9, 2),
+      fullName: "Diego S.",
+      email: "diego@reactive.test",
+      phone: "+54 9 11 5555-0121",
+      requestedCoachId: null,
+      caseType: "rendimiento",
+      message: null,
+      status: "pending",
+      createdAt: ts(-1, 2),
+      reviewedBy: null,
+      reviewedAt: null,
+      rejectReason: null,
+    },
+  ];
+
   return {
     profiles,
     coachNotes,
@@ -714,5 +749,7 @@ export function buildSeed(today: string = todayISO(), now: Date = new Date()): D
     workoutSessions,
     itemChecks,
     exerciseViews,
+    accessRequests,
+    activations: [],
   };
 }

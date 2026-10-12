@@ -144,3 +144,21 @@ Seed (`supabase/seed.sql`) con los datos del diseño:
    - **F7:** prueba E2E con Playwright del flujo clave (profe importa un Excel → publica → la clienta ve la rutina → abre el video → vuelve) y deploy en Vercel
 3. Si te falta algo (claves de Supabase, el logo en SVG), pedímelo puntualmente; no inventes credenciales.
 4. Dejá un `README.md` con el setup local, cómo correr las migraciones y el seed, y cómo crear el primer admin.
+
+## Agregado: flujo "Primera vez" / pedir acceso (después de la F4)
+1. En el login, "¿Primera vez? Pedile tu acceso a tu profe" pasa a ser un link a `/solicitar-acceso`.
+2. **`/solicitar-acceso`** (misma estética que el login):
+   - Campos: nombre y apellido, email, WhatsApp, profe (selector con los profes activos + "Todavía no tengo"), tipo de caso (chips: Lesión deportiva / Postquirúrgico / Dolor crónico / Rendimiento) y mensaje opcional.
+   - Botón "PEDIR ACCESO →".
+   - Si ya hay una solicitud pendiente con ese email, avisarlo. Si ya existe la cuenta, mostrar: "Ya tenés cuenta: ingresá o recuperá tu contraseña".
+3. **Pantalla de éxito:** "¡LISTO! Tu profe ya recibió tu pedido. Te va a llegar un mail para activar tu cuenta.", con un botón secundario "Escribinos por WhatsApp" que lleve a https://wa.link/tk8wy7 (el link de la bio de Reactive).
+4. **Tabla `access_requests`:** id, full_name, email, phone, requested_coach_id, case_type, message, status (pending / approved / rejected), created_at, reviewed_by, reviewed_at, reject_reason.
+   - RLS: el usuario anónimo solo puede insertar con status pending; leer y actualizar, solo coach y admin.
+   - Anti-spam: campo honeypot y límite de pedidos por email/IP.
+5. **Panel del profe:**
+   - Card "Solicitudes de acceso (N)" en el Panel, más un filtro "Solicitudes" en Clientes.
+   - **Aprobar** crea el cliente con los datos ya cargados, lo asigna al profe y envía la invitación por mail.
+   - **Rechazar** pide un motivo opcional.
+6. **Activación:** la invitación lleva a `/activar`, con la pantalla "CREÁ TU CONTRASEÑA" en el estilo del login. Después entra directo a Hoy, con el estado vacío si todavía no tiene rutina.
+7. **En modo mock** todo funciona igual: la invitación se simula mostrándole al profe el link de activación.
+8. Tests unitarios del flujo, y sumarlo al E2E de la F7.

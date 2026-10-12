@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
+import { AccessRequestCard } from "@/components/coach/AccessRequestCard";
 import { InlineLoading } from "@/components/Loading";
 import { Avatar, FilterChip, Input, PillButton, StatusBadge } from "@/components/ui";
 import { matchesClient, sortClients, summarizeClient, type ClientSummary } from "@/lib/coach/clients";
@@ -10,12 +11,13 @@ import { data } from "@/lib/data";
 import { useQuery } from "@/lib/hooks";
 import type { ClientRoutineFilter } from "@/lib/routine/status";
 
-type Filter = "todos" | ClientRoutineFilter;
+type Filter = "todos" | ClientRoutineFilter | "solicitudes";
 const FILTERS: { key: Filter; label: string }[] = [
   { key: "todos", label: "Todos" },
   { key: "activa", label: "Activa" },
   { key: "por-vencer", label: "Por vencer" },
   { key: "sin-rutina", label: "Sin rutina" },
+  { key: "solicitudes", label: "Solicitudes" },
 ];
 
 function Badge({ s }: { s: ClientSummary }) {
@@ -33,12 +35,21 @@ export function ClientesList() {
     return sortClients(clients.map((c) => summarizeClient(c, routines.filter((r) => r.clientId === c.id))));
   }, []);
 
+  // Solicitudes: sin refresco automático, así la tarjeta aprobada queda visible (con el link de activación).
+  const requests = useQuery(async () => {
+    const [list, staff] = await Promise.all([data.accessRequests.list("pending"), data.profiles.listStaff()]);
+    return { list, staff };
+  }, [], { live: false });
+  const [handled, setHandled] = useState<string[]>([]);
+  const pendingCount = (requests.data?.list ?? []).filter((r) => !handled.includes(r.id)).length;
+
   const all = useMemo(() => q.data ?? [], [q.data]);
   const counts = useMemo(() => {
-    const c: Record<Filter, number> = { todos: all.length, activa: 0, "por-vencer": 0, "sin-rutina": 0 };
+    const c: Record<Filter, number> = { todos: all.length, activa: 0, "por-vencer": 0, "sin-rutina": 0, solicitudes: 0 };
     for (const s of all) c[s.filter]++;
     return c;
   }, [all]);
+  counts.solicitudes = pendingCount;
   const list = all.filter((s) => (filter === "todos" || s.filter === filter) && matchesClient(s, query));
 
   return (
@@ -71,7 +82,27 @@ export function ClientesList() {
       </div>
 
       <div className="px-gutter">
-        {q.loading && !q.data ? (
+        {filter === "solicitudes" ? (
+          requests.loading && !requests.data ? (
+            <InlineLoading />
+          ) : (requests.data?.list.length ?? 0) === 0 ? (
+            <p className="mt-10 text-center text-muted">No hay solicitudes de acceso pendientes.</p>
+          ) : (
+            <ul className="mt-4 space-y-3">
+              {requests.data!.list.map((r) => (
+                <AccessRequestCard
+                  key={r.id}
+                  request={r}
+                  coachName={r.requestedCoachId ? (requests.data!.staff.find((p) => p.id === r.requestedCoachId)?.fullName ?? "Profe") : null}
+                  onChanged={() => {
+                    setHandled((h) => [...h, r.id]);
+                    void q.reload();
+                  }}
+                />
+              ))}
+            </ul>
+          )
+        ) : q.loading && !q.data ? (
           <InlineLoading />
         ) : list.length === 0 ? (
           <div className="mt-10 text-center">

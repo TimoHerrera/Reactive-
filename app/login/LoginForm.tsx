@@ -133,9 +133,12 @@ export function LoginForm() {
         )}
 
         <footer className="mt-auto border-t border-line pb-8 pt-6 text-center">
-          <p className="text-body">
-            ¿Primera vez? <span className="text-muted">Pedile tu acceso a tu profe.</span>
-          </p>
+          <Link
+            href="/solicitar-acceso"
+            className="inline-flex min-h-[44px] items-center text-body underline decoration-accent decoration-2 underline-offset-4 hover:text-ink"
+          >
+            ¿Primera vez?&nbsp;<span className="text-title">Pedile tu acceso a tu profe.</span>
+          </Link>
           <p className="mt-3 text-small text-muted">Clientes y profes usan el mismo acceso.</p>
         </footer>
       </form>
