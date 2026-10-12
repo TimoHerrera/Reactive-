@@ -1,0 +1,109 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useMemo, useState } from "react";
+import { InlineLoading } from "@/components/Loading";
+import { Avatar, FilterChip, Input, PillButton, StatusBadge } from "@/components/ui";
+import { matchesClient, sortClients, summarizeClient, type ClientSummary } from "@/lib/coach/clients";
+import { data } from "@/lib/data";
+import { useQuery } from "@/lib/hooks";
+import type { ClientRoutineFilter } from "@/lib/routine/status";
+
+type Filter = "todos" | ClientRoutineFilter;
+const FILTERS: { key: Filter; label: string }[] = [
+  { key: "todos", label: "Todos" },
+  { key: "activa", label: "Activa" },
+  { key: "por-vencer", label: "Por vencer" },
+  { key: "sin-rutina", label: "Sin rutina" },
+];
+
+function Badge({ s }: { s: ClientSummary }) {
+  return <StatusBadge status={s.filter} />;
+}
+
+export function ClientesList() {
+  const router = useRouter();
+  const params = useSearchParams();
+  const filter = (params.get("filtro") as Filter) || "todos";
+  const [query, setQuery] = useState("");
+
+  const q = useQuery(async () => {
+    const [clients, routines] = await Promise.all([data.profiles.listClients(), data.routines.list()]);
+    return sortClients(clients.map((c) => summarizeClient(c, routines.filter((r) => r.clientId === c.id))));
+  }, []);
+
+  const all = useMemo(() => q.data ?? [], [q.data]);
+  const counts = useMemo(() => {
+    const c: Record<Filter, number> = { todos: all.length, activa: 0, "por-vencer": 0, "sin-rutina": 0 };
+    for (const s of all) c[s.filter]++;
+    return c;
+  }, [all]);
+  const list = all.filter((s) => (filter === "todos" || s.filter === filter) && matchesClient(s, query));
+
+  return (
+    <div className="pb-6">
+      <header className="flex items-center justify-between gap-3 px-gutter pb-4 pt-12">
+        <h1 className="display text-display-xl text-title">Clientes</h1>
+        <PillButton href="/coach/clientes/nuevo" size="md" className="shrink-0">
+          + Cliente
+        </PillButton>
+      </header>
+      <div className="px-gutter">
+        <Input
+          search
+          placeholder="Buscar por nombre u objetivo"
+          aria-label="Buscar cliente por nombre, objetivo o caso"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+      </div>
+      <div className="no-scrollbar mt-4 flex gap-2 overflow-x-auto px-gutter" role="group" aria-label="Filtrar por rutina">
+        {FILTERS.map((f) => (
+          <FilterChip
+            key={f.key}
+            active={filter === f.key}
+            onClick={() => router.replace(f.key === "todos" ? "/coach/clientes" : `/coach/clientes?filtro=${f.key}`, { scroll: false })}
+          >
+            {f.label} <span className={filter === f.key ? "text-ink/80" : "text-muted"}>{q.data ? counts[f.key] : ""}</span>
+          </FilterChip>
+        ))}
+      </div>
+
+      <div className="px-gutter">
+        {q.loading && !q.data ? (
+          <InlineLoading />
+        ) : list.length === 0 ? (
+          <div className="mt-10 text-center">
+            <p className="text-muted">
+              {all.length === 0 ? "Todavía no cargaste clientes." : query ? `Nadie coincide con «${query}».` : "No hay clientes en este filtro."}
+            </p>
+            {all.length === 0 && (
+              <PillButton href="/coach/clientes/nuevo" variant="inverse" className="mt-6" arrow>
+                Sumar el primero
+              </PillButton>
+            )}
+          </div>
+        ) : (
+          <ul className="mt-4 space-y-2">
+            {list.map((s) => (
+              <li key={s.client.id}>
+                <Link
+                  href={`/coach/clientes/${s.client.id}`}
+                  className="flex min-h-[72px] items-center gap-3 rounded-lg border border-line bg-surface px-3 py-3 hover:bg-surface-2"
+                >
+                  <Avatar name={s.client.fullName} size="md" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-title-sm">{s.client.fullName}</span>
+                    <span className="block truncate text-small text-muted">{s.subtitle}</span>
+                  </span>
+                  <Badge s={s} />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}

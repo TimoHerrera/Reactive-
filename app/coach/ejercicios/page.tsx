@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useMemo, useState } from "react";
 import { InlineLoading } from "@/components/Loading";
 import { Input, PillButton, StatusBadge } from "@/components/ui";
 import { ExerciseThumb } from "@/components/video/ExerciseThumb";
@@ -27,10 +28,11 @@ function aliasLabel(e: Exercise) {
   return `${n} alias`;
 }
 
-export default function CoachEjerciciosPage() {
+function CoachEjercicios() {
+  const params = useSearchParams();
   const exercises = useQuery(() => data.exercises.list(), []);
   const [query, setQuery] = useState("");
-  const [onlyMissing, setOnlyMissing] = useState(false);
+  const [onlyMissing, setOnlyMissing] = useState(params.get("sin-video") === "1");
 
   const all = useMemo(() => exercises.data ?? [], [exercises.data]);
   const missing = useMemo(() => all.filter((e) => !hasVideo(e)).length, [all]);
@@ -117,5 +119,13 @@ export default function CoachEjerciciosPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function CoachEjerciciosPage() {
+  return (
+    <Suspense fallback={<InlineLoading />}>
+      <CoachEjercicios />
+    </Suspense>
   );
 }

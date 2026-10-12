@@ -4,7 +4,7 @@ import * as tus from "tus-js-client";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getBrowserSupabase } from "@/lib/supabase/browser";
 import { SUPABASE_URL, VIDEO_BUCKET } from "@/lib/supabase/env";
-import { inviteClient } from "@/app/actions/clients";
+import { inviteClient, inviteCoach } from "@/app/actions/clients";
 import type { DataSource } from "../repositories";
 import type {
   CoachNote,
@@ -221,6 +221,11 @@ export const supabaseDataSource: DataSource = {
     },
     async createClient(input) {
       const res = await inviteClient(input);
+      if (!res.ok) throw new Error(res.error);
+      return res.profile;
+    },
+    async createStaff(input) {
+      const res = await inviteCoach(input);
       if (!res.ok) throw new Error(res.error);
       return res.profile;
     },

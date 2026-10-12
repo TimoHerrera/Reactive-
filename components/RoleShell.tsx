@@ -21,7 +21,12 @@ function Guard({ area, children }: { area: "client" | "coach"; children: ReactNo
 }
 
 /** Pantallas a pantalla completa, sin tab bar (detalle de ejercicio, formulario de ejercicio). */
-const FULLSCREEN = [/^\/app\/ejercicios\/[^/]+$/, /^\/coach\/ejercicios\/[^/]+$/, /^\/coach\/rutinas\/.+/];
+const FULLSCREEN = [
+  /^\/app\/ejercicios\/[^/]+$/,
+  /^\/coach\/ejercicios\/[^/]+$/,
+  /^\/coach\/rutinas\/.+/,
+  /^\/coach\/clientes\/(nuevo|[^/]+\/editar)$/,
+];
 
 /** Layout por rol: protege, provee la sesión y dibuja la tab bar. */
 export function RoleShell({ area, tabs, children }: { area: "client" | "coach"; tabs: TabItem[]; children: ReactNode }) {

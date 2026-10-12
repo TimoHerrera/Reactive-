@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { Profile } from "@/lib/data";
 import { clearViewAs } from "./useViewedClient";
@@ -16,7 +17,7 @@ export function ViewAsBanner({ client }: { client: Profile | null }) {
           clearViewAs();
           router.push(client ? `/coach/clientes/${client.id}` : "/coach/clientes");
         }}
-        className="h-9 shrink-0 rounded-full bg-ink px-3 text-caption font-bold text-bg"
+        className="h-11 shrink-0 rounded-full bg-ink px-4 text-caption font-bold text-bg"
       >
         Salir
       </button>
@@ -30,9 +31,9 @@ export function PickClientNotice() {
     <div className="px-gutter pt-16 text-center">
       <p className="display text-h1">Elegí un cliente</p>
       <p className="mt-3 text-muted">Para ver la app como un cliente, entrá desde su ficha y tocá «Ver como».</p>
-      <a href="/coach/clientes" className="mt-8 inline-flex h-12 items-center rounded-full bg-ink px-6 font-semibold text-bg">
+      <Link href="/coach/clientes" className="mt-8 inline-flex h-12 items-center rounded-full bg-ink px-6 font-semibold text-bg">
         Ir a Clientes
-      </a>
+      </Link>
     </div>
   );
 }

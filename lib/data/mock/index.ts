@@ -80,6 +80,33 @@ export const mockDataSource: DataSource = {
         }),
       );
     },
+    async createStaff(input) {
+      if (currentUser()?.role !== "admin") throw new Error("Solo un admin puede sumar profes.");
+      return delay(
+        mutate((db) => {
+          if (db.profiles.some((p) => p.email.toLowerCase() === input.email.toLowerCase())) {
+            throw new Error("Ya existe un usuario con ese email.");
+          }
+          const p: Profile = {
+            id: uuid(),
+            role: input.role ?? "coach",
+            fullName: input.fullName,
+            email: input.email,
+            phone: null,
+            title: input.title ?? null,
+            sport: null,
+            caseType: null,
+            caseDetail: null,
+            goal: null,
+            coachId: null,
+            clientSince: null,
+            createdAt: now(),
+          };
+          db.profiles.push(p);
+          return p;
+        }),
+      );
+    },
     async createClient(input) {
       return delay(
         mutate((db) => {

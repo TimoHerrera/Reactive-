@@ -56,7 +56,7 @@ function Section({ n, title, children }: { n: string; title: string; children: R
   return (
     <section className="border-t border-line px-gutter py-8">
       <h2 className="display mb-5 flex items-baseline gap-2 text-h2">
-        <span className="text-small text-accent-deep">{n}</span>
+        <span className="text-small text-muted">{n}</span>
         <span>{title}</span>
       </h2>
       {children}

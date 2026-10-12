@@ -1,7 +1,14 @@
-"use client";
+import { Suspense } from "react";
+import type { Metadata } from "next";
+import { Loading } from "@/components/Loading";
+import { ClientesList } from "./ClientesList";
 
-import { PagePlaceholder } from "@/components/PagePlaceholder";
+export const metadata: Metadata = { title: "Clientes" };
 
 export default function ClientesPage() {
-  return <PagePlaceholder kicker="Modo profe" title="Clientes" phase="F6" />;
+  return (
+    <Suspense fallback={<Loading />}>
+      <ClientesList />
+    </Suspense>
+  );
 }

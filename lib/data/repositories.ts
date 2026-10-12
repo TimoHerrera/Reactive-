@@ -33,6 +33,8 @@ export interface ProfilesRepo {
   update(id: string, patch: ProfilePatch): Promise<Profile>;
   /** Alta de cliente. En Supabase se hace por server action (invitación por email). */
   createClient(input: NewClientInput): Promise<Profile>;
+  /** Alta de profe o admin. Solo admin (server action en Supabase). */
+  createStaff(input: { fullName: string; email: string; title?: string | null; role?: "coach" | "admin" }): Promise<Profile>;
 }
 
 export interface CoachNotesRepo {
