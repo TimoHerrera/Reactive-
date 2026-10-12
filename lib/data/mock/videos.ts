@@ -26,6 +26,7 @@ async function idb<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRe
 }
 
 const urlCache = new Map<string, string>();
+const seedAvailable = new Map<string, string | null>();
 
 export const mockVideos: VideosRepo = {
   async upload(file, { name, onProgress, signal }) {
@@ -43,7 +44,16 @@ export const mockVideos: VideosRepo = {
   },
 
   async getUrl(path) {
-    if (path.startsWith("seed/")) return `/mock-videos/${path.slice(5)}`;
+    if (path.startsWith("seed/")) {
+      // Videos de demo opcionales en /public/mock-videos/<clave>.mp4. Si no están, se ve el placeholder del diseño.
+      if (seedAvailable.has(path)) return seedAvailable.get(path)!;
+      const url = `/mock-videos/${path.slice(5)}`;
+      const ok = await fetch(url, { method: "HEAD" })
+        .then((r) => r.ok)
+        .catch(() => false);
+      seedAvailable.set(path, ok ? url : null);
+      return ok ? url : null;
+    }
     const cached = urlCache.get(path);
     if (cached) return cached;
     try {
