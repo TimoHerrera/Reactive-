@@ -36,6 +36,14 @@ Con `NEXT_PUBLIC_DATA_SOURCE=mock` la app usa datos de demo guardados en el `loc
 - También se puede ingresar con el email de cualquier usuario del seed (`*@reactive.test`) y la contraseña `DEMO_PASSWORD` de `lib/data/seed.ts`.
 - Panel del profe → **«Restablecer datos demo»** vuelve al seed.
 - Las fechas del seed son relativas a hoy, así que la demo no envejece.
+- Los videos que sube el profe se guardan en IndexedDB del navegador. Los del seed son opcionales: ver `public/mock-videos/README.md`.
+
+## Videos
+
+- El método principal es **subir el archivo desde la app** (galería o cámara). YouTube es un link opcional.
+- Se aceptan `.mp4`, `.mov` y `.webm`, hasta `NEXT_PUBLIC_MAX_VIDEO_MB` (50 por defecto) y `NEXT_PUBLIC_MAX_VIDEO_SECONDS` (60).
+- Antes de subir se valida el archivo y se genera la miniatura en el navegador (frame a 1 s).
+- En Supabase la subida es reanudable (TUS) al bucket privado `exercise-videos`, y se reproduce con URLs firmadas de 10 minutos.
 
 ## Arquitectura de datos
 
@@ -101,7 +109,7 @@ Opción B, a mano: en **SQL Editor**, pegá y ejecutá en orden los archivos de 
 
 - [x] **F0**: setup, tokens, fuentes, PWA y `/dev/ui`
 - [x] **F1**: capa de datos (mock), auth simulada por rol, layouts, migraciones/RLS/seed de Supabase
-- [ ] F2: biblioteca de ejercicios con subida de video
+- [x] **F2**: biblioteca de ejercicios con subida de video
 - [ ] F3: experiencia del cliente
 - [ ] F4: carga manual de rutinas
 - [ ] F5: importación de Excel
