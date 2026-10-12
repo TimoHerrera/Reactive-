@@ -17,7 +17,8 @@ import { CSS } from "@dnd-kit/utilities";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { PillButton } from "@/components/ui";
 import { cn } from "@/lib/cn";
-import { BLOCK_NAMES, hasVideo, type Exercise } from "@/lib/data";
+import { BLOCK_NAMES, data, hasVideo, type Exercise } from "@/lib/data";
+import { normalizeText } from "@/lib/text";
 import {
   addBlock,
   addDay,
@@ -26,6 +27,7 @@ import {
   duplicateDay,
   findItem,
   itemSummary,
+  linkItems,
   moveItem,
   removeBlock,
   removeDay,
@@ -40,6 +42,7 @@ import {
 } from "@/lib/routine/draft";
 import { pad2 } from "@/components/ui/ExerciseCard";
 import { ExercisePicker } from "./ExercisePicker";
+import { LinkPanel } from "./LinkPanel";
 import { WizardFooter } from "./WizardHeader";
 
 type Update = (fn: (d: RoutineDraft) => RoutineDraft) => void;
@@ -85,6 +88,9 @@ function SortableItem({
   onToggle,
   onChange,
   onRemove,
+  exercises,
+  onLink,
+  onCreate,
 }: {
   item: DraftItem;
   number: number;
@@ -93,6 +99,9 @@ function SortableItem({
   onToggle: () => void;
   onChange: (patch: Partial<DraftItem>) => void;
   onRemove: () => void;
+  exercises: Exercise[];
+  onLink: (ex: Exercise) => Promise<void>;
+  onCreate: (name: string) => Promise<void>;
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: item.key });
   const name = exercise?.name ?? item.rawName;
@@ -136,6 +145,7 @@ function SortableItem({
       </div>
       {expanded && (
         <div className="space-y-3 px-3 pb-3">
+          <LinkPanel rawName={item.rawName} linked={exercise ?? null} exercises={exercises} onLink={onLink} onCreate={onCreate} />
           <div className="grid grid-cols-4 gap-2">
             <SmallField
               label="Series"
@@ -218,6 +228,7 @@ export function StepDays({
   onNext,
   onSaveTemplate,
   saving,
+  onExercisesChanged,
 }: {
   draft: RoutineDraft;
   update: Update;
@@ -225,7 +236,35 @@ export function StepDays({
   onNext: () => void;
   onSaveTemplate: () => void;
   saving: boolean;
+  /** La biblioteca cambió (alias nuevo o ejercicio creado): recargarla. */
+  onExercisesChanged: () => void;
 }) {
+  /** Vincula el ítem (y sus iguales sin vincular) y guarda el texto original como alias. */
+  const linkItem = async (item: DraftItem, ex: Exercise) => {
+    update((d) => linkItems(d, item.key, ex, normalizeText));
+    if (normalizeText(item.rawName) !== normalizeText(ex.name) && !item.exerciseId) {
+      await data.exercises.addAlias(ex.id, item.rawName).catch(() => undefined);
+    }
+    onExercisesChanged();
+  };
+  const createAndLink = async (item: DraftItem, name: string) => {
+    const created = await data.exercises.create({
+      name,
+      aliases: [],
+      category: "Fuerza",
+      muscleGroups: [],
+      equipment: null,
+      videoPath: null,
+      videoPosterPath: null,
+      videoDurationS: null,
+      youtubeUrl: null,
+      techniqueCues: [],
+      commonMistakes: [],
+    });
+    update((d) => linkItems(d, item.key, created, normalizeText));
+    onExercisesChanged();
+  };
+
   const [dayKey, setDayKey] = useState(draft.days[0]?.key ?? "");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -376,6 +415,9 @@ export function StepDays({
                             onToggle={() => setExpanded((k) => (k === item.key ? null : item.key))}
                             onChange={(patch) => update((d) => updateItem(d, day.key, item.key, patch))}
                             onRemove={() => update((d) => removeItem(d, day.key, item.key))}
+                            exercises={exercises}
+                            onLink={(ex) => linkItem(item, ex)}
+                            onCreate={(name) => createAndLink(item, name)}
                           />
                         );
                       })}

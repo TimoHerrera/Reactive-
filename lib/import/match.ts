@@ -98,3 +98,38 @@ export function buildMatcher(exercises: Exercise[], opts: { threshold?: number }
     return { status: "no-encontrado", exercise: null, matchedText: null, via: null, score: null };
   };
 }
+
+const STOPWORDS = new Set(["con", "de", "del", "la", "el", "al", "los", "las", "por", "en", "y", "a", "c", "un", "una", "sin"]);
+const tokens = (s: string) => s.split(" ").filter((t) => t.length >= 3 && !STOPWORDS.has(t));
+
+export type Suggestion = { exercise: Exercise; matchedText: string; score: number };
+
+/**
+ * Ejercicios de la biblioteca parecidos a un texto (para «¿Es alguno de estos?» al vincular).
+ * Combina similitud del texto completo, palabras en común y nombre/alias contenido.
+ * Encuentra «iguales pero con nombres un poco cambiados» («Hip trhust isometrico» → Hip thrust).
+ */
+export function suggestExercises(raw: string, exercises: Exercise[], limit = 3, minScore = 0.4): Suggestion[] {
+  const q = normalizeText(raw);
+  if (!q) return [];
+  const qTokens = tokens(q);
+  const padded = ` ${q} `;
+  const best = new Map<string, Suggestion>();
+
+  for (const e of exercises) {
+    for (const text of [e.name, ...e.aliases]) {
+      const t = normalizeText(text);
+      if (!t) continue;
+      const tTokens = tokens(t);
+      const shared = tTokens.filter((tok) => qTokens.some((qt) => qt === tok || similarity(qt, tok) >= 0.8)).length;
+      const overlap = tTokens.length && qTokens.length ? shared / Math.min(tTokens.length, qTokens.length) : 0;
+      const contained = t.length >= 3 && padded.includes(` ${t} `) ? 0.75 : 0;
+      // La similitud del texto completo solo cuenta si es casi igual (error de tipeo); si no, deciden las palabras en común.
+      const sim = similarity(q, t);
+      const score = Math.max(sim >= MIN_SIMILARITY ? sim : 0, overlap * 0.85, contained);
+      const prev = best.get(e.id);
+      if (score >= minScore && (!prev || score > prev.score)) best.set(e.id, { exercise: e, matchedText: text, score });
+    }
+  }
+  return [...best.values()].sort((a, b) => b.score - a.score || a.exercise.name.localeCompare(b.exercise.name, "es")).slice(0, limit);
+}

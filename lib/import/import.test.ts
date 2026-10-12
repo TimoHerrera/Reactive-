@@ -280,3 +280,21 @@ describe("similitud de texto completo", () => {
     expect(match("Sillon de cuadriceps").status).toBe("no-encontrado");
   });
 });
+
+describe("sugerencias para vincular después", () => {
+  it("encuentra el mismo ejercicio con el nombre un poco cambiado", async () => {
+    const { suggestExercises } = await import("./match");
+    const names = (raw: string) => suggestExercises(raw, exercises).map((s) => s.exercise.name);
+    expect(names("Hip trhust isometrico")[0]).toBe("Hip thrust");
+    expect(names("Sentadilla goblet con kettbell")[0]).toBe("Sentadilla goblet");
+    expect(names("Plancha Copenhague")[0]).toBe("Copenhagen plank");
+    expect(names("Peso muerto rumano con barra")[0]).toBe("Peso muerto rumano");
+    expect(names("Flexiones de brazo en rodillas")[0]).toBe("Flexiones de brazos");
+  });
+
+  it("no sugiere cualquier cosa", async () => {
+    const { suggestExercises } = await import("./match");
+    expect(suggestExercises("Sillon de cuadriceps", exercises)).toEqual([]);
+    expect(suggestExercises("Burpees", exercises)).toEqual([]);
+  });
+});

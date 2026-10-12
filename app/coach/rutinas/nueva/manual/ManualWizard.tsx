@@ -123,6 +123,7 @@ export function ManualWizard() {
             onNext={() => go(3)}
             onSaveTemplate={() => void onSaveTemplate()}
             saving={publishing}
+            onExercisesChanged={() => void deps.reload()}
           />
         </>
       )}
