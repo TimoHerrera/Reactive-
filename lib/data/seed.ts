@@ -522,7 +522,7 @@ export function buildSeed(today: string = todayISO(), now: Date = new Date()): D
       role: "coach",
       fullName: "Nico R.",
       email: "nico@reactive.test",
-      phone: null,
+      phone: "+54 9 11 5555-0102",
       title: "Kinesiólogo deportivo",
       sport: null,
       caseType: null,

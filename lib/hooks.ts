@@ -17,7 +17,8 @@ export type QueryState<T> = {
  * Carga asíncrona simple desde la capa de datos.
  * Se vuelve a ejecutar cuando cambian `deps` y, en modo mock, cuando cambia la base (otra pestaña, otra pantalla).
  */
-export function useQuery<T>(fn: () => Promise<T>, deps: unknown[]): QueryState<T> {
+export function useQuery<T>(fn: () => Promise<T>, deps: unknown[], opts: { live?: boolean } = {}): QueryState<T> {
+  const live = opts.live ?? true;
   const [state, setState] = useState<{ data: T | undefined; error: Error | null; loading: boolean }>({
     data: undefined,
     error: null,
@@ -44,9 +45,9 @@ export function useQuery<T>(fn: () => Promise<T>, deps: unknown[]): QueryState<T
   }, deps);
 
   useEffect(() => {
-    if (data.kind !== "mock") return;
+    if (data.kind !== "mock" || !live) return;
     return subscribeMockDb(() => void run(true));
-  }, [run]);
+  }, [run, live]);
 
   const setData = useCallback((updater: (prev: T | undefined) => T | undefined) => {
     setState((s) => ({ ...s, data: updater(s.data) }));

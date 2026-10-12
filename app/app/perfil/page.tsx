@@ -1,7 +1,14 @@
-"use client";
+import { Suspense } from "react";
+import type { Metadata } from "next";
+import { Loading } from "@/components/Loading";
+import { PerfilView } from "./PerfilView";
 
-import { PagePlaceholder } from "@/components/PagePlaceholder";
+export const metadata: Metadata = { title: "Perfil" };
 
 export default function PerfilPage() {
-  return <PagePlaceholder kicker="Perfil" title="Perfil" phase="F3" />;
+  return (
+    <Suspense fallback={<Loading />}>
+      <PerfilView />
+    </Suspense>
+  );
 }
