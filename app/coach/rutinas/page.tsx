@@ -1,7 +1,14 @@
-"use client";
+import { Suspense } from "react";
+import type { Metadata } from "next";
+import { Loading } from "@/components/Loading";
+import { RutinasList } from "./RutinasList";
 
-import { PagePlaceholder } from "@/components/PagePlaceholder";
+export const metadata: Metadata = { title: "Rutinas" };
 
 export default function RutinasPage() {
-  return <PagePlaceholder kicker="Modo profe" title="Rutinas" phase="F4 y F6" />;
+  return (
+    <Suspense fallback={<Loading />}>
+      <RutinasList />
+    </Suspense>
+  );
 }

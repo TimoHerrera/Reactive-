@@ -111,7 +111,7 @@ Opción B, a mano: en **SQL Editor**, pegá y ejecutá en orden los archivos de 
 - [x] **F1**: capa de datos (mock), auth simulada por rol, layouts, migraciones/RLS/seed de Supabase
 - [x] **F2**: biblioteca de ejercicios con subida de video
 - [x] **F3**: experiencia del cliente
-- [ ] F4: carga manual de rutinas
+- [x] **F4**: carga manual de rutinas (3 pasos, plantillas, duplicar y editar) + lista de Rutinas
 - [ ] F5: importación de Excel
 - [ ] F6: Panel, Clientes, Rutinas y pulido
 - [ ] F7: E2E con Playwright y deploy

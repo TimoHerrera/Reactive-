@@ -60,6 +60,10 @@ export interface RoutinesRepo {
   /** Crea o reemplaza la rutina completa (días, bloques e ítems). */
   saveTree(tree: RoutineTree): Promise<RoutineTree>;
   publish(id: string): Promise<Routine>;
+  /** Cambios simples sin tocar el árbol (ej. acortar la vigencia de la rutina que se reemplaza). */
+  update(id: string, patch: Partial<Pick<Routine, "name" | "startsOn" | "endsOn" | "clientMessage">>): Promise<Routine>;
+  /** Cantidad de ejercicios por rutina (para las listas). */
+  itemCounts(): Promise<Record<string, number>>;
   remove(id: string): Promise<void>;
 }
 

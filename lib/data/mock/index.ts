@@ -283,6 +283,26 @@ export const mockDataSource: DataSource = {
         }),
       );
     },
+    async update(id, patch) {
+      return delay(
+        mutate((db) => {
+          const r = db.routines.find((x) => x.id === id) ?? notFound("Rutina");
+          Object.assign(r, patch);
+          return r;
+        }),
+      );
+    },
+    async itemCounts() {
+      const db = getDb();
+      const dayToRoutine = new Map(db.routineDays.map((d) => [d.id, d.routineId]));
+      const blockToRoutine = new Map(db.routineBlocks.map((b) => [b.id, dayToRoutine.get(b.dayId)]));
+      const out: Record<string, number> = {};
+      for (const it of db.routineItems) {
+        const rid = blockToRoutine.get(it.blockId);
+        if (rid) out[rid] = (out[rid] ?? 0) + 1;
+      }
+      return delay(out, 40);
+    },
     async remove(id) {
       mutate((db) => {
         const days = db.routineDays.filter((d) => d.routineId === id).map((d) => d.id);

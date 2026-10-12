@@ -317,6 +317,26 @@ export const supabaseDataSource: DataSource = {
       );
       return toRoutine(row as Row);
     },
+    async update(id, patch) {
+      const map: Record<string, string> = { name: "name", startsOn: "starts_on", endsOn: "ends_on", clientMessage: "client_message" };
+      const row: Row = {};
+      for (const [k, v] of Object.entries(patch)) if (map[k]) row[map[k]!] = v;
+      const saved = check(await sb().from("routines").update(row).eq("id", id).select().single());
+      return toRoutine(saved as Row);
+    },
+    async itemCounts() {
+      // Conteo agregado por PostgREST: días → bloques → count de ítems.
+      const rows = check(await sb().from("routine_days").select("routine_id, routine_blocks(routine_items(count))")) as Row[];
+      const out: Record<string, number> = {};
+      for (const d of rows) {
+        const rid = d.routine_id as string;
+        for (const b of (d.routine_blocks as Row[]) ?? []) {
+          const n = ((b.routine_items as { count: number }[]) ?? [])[0]?.count ?? 0;
+          out[rid] = (out[rid] ?? 0) + n;
+        }
+      }
+      return out;
+    },
     async remove(id) {
       check(await sb().from("routines").delete().eq("id", id));
     },
