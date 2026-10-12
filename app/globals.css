@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    color-scheme: dark;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-bg font-sans text-body text-ink antialiased;
+  }
+  /* Foco visible en todo lo interactivo (accesibilidad). */
+  :focus-visible {
+    outline: 2px solid #ffffff;
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* Display: font-display font-extrabold italic uppercase leading-[.92] */
+  .display {
+    @apply font-display font-extrabold uppercase italic leading-[.92];
+  }
+  .label {
+    @apply text-label font-bold uppercase text-muted;
+  }
+  /* Grilla de fondo: white 7 % · 28 px */
+  .bg-grid {
+    background-image: theme("backgroundImage.grid");
+    background-size: theme("backgroundSize.grid");
+  }
+  /* Contenedor de teléfono: en desktop se ve centrado. */
+  .phone {
+    @apply relative mx-auto min-h-dvh w-full max-w-phone bg-bg;
+  }
+}
+
+@layer utilities {
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+}
