@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { useClientRoutine } from "@/components/client/useClientRoutine";
 import { PickClientNotice, ViewAsBanner } from "@/components/client/ViewAsBanner";
@@ -64,11 +65,14 @@ export function PerfilView() {
           <div id="profe" className="scroll-mt-24">
             <Row label="Tu profe">
               {coach ? (
-                <span className="inline-flex items-center gap-2">
+                <Link
+                  href="/app/profe"
+                  className="inline-flex min-h-[44px] items-center gap-2 underline decoration-accent decoration-2 underline-offset-4"
+                >
                   <Avatar name={coach.fullName} size="xs" pro />
                   {coach.fullName}
                   {coach.title && ` · ${coach.title.split(" ")[0]}`}
-                </span>
+                </Link>
               ) : (
                 "—"
               )}

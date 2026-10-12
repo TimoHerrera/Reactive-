@@ -87,7 +87,7 @@ export function HoyView() {
                 <p className="mt-3 text-title-sm">{coach.fullName}</p>
                 <p className="text-small text-muted">{coach.title}</p>
                 <Link
-                  href="/app/perfil#profe"
+                  href="/app/profe"
                   className="mt-auto inline-flex min-h-[44px] items-end text-small font-semibold underline decoration-accent decoration-2 underline-offset-4"
                 >
                   Ver perfil

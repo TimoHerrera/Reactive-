@@ -104,7 +104,7 @@ insert into public.profiles (id, role, full_name, email, phone, title, sport, ca
 values ('10000000-0000-4000-8000-000000000001', 'admin', 'Admin Reactive', 'admin@reactive.test', null, 'Administración', null, null, null, null, null, null, now() - interval '5184000 seconds')
 on conflict (id) do nothing;
 insert into public.profiles (id, role, full_name, email, phone, title, sport, case_type, case_detail, goal, coach_id, client_since, created_at)
-values ('10000000-0000-4000-8000-000000000002', 'coach', 'Nico R.', 'nico@reactive.test', null, 'Kinesiólogo deportivo', null, null, null, null, null, null, now() - interval '5184000 seconds')
+values ('10000000-0000-4000-8000-000000000002', 'coach', 'Nico R.', 'nico@reactive.test', '+54 9 11 5555-0102', 'Kinesiólogo deportivo', null, null, null, null, null, null, now() - interval '5184000 seconds')
 on conflict (id) do nothing;
 insert into public.profiles (id, role, full_name, email, phone, title, sport, case_type, case_detail, goal, coach_id, client_since, created_at)
 values ('10000000-0000-4000-8000-000000000010', 'client', 'Martina G.', 'martina@reactive.test', '+54 9 11 5555-0101', null, 'Fútbol 11', 'lesion_deportiva', 'Tobillo', 'Volver a jugar al fútbol post-esguince de tobillo', '10000000-0000-4000-8000-000000000002', current_date - 71, now() - interval '5184000 seconds')
