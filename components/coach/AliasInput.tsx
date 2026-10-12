@@ -47,13 +47,13 @@ export function AliasInput({
         {value.length > 0 && (
           <ul className="flex flex-wrap gap-2 p-1">
             {value.map((a) => (
-              <li key={a} className="flex h-9 items-center gap-1 rounded-sm bg-surface-2 pl-3 text-small font-semibold">
+              <li key={a} className="flex h-11 items-center gap-1 rounded-sm bg-surface-2 pl-3 text-small font-semibold">
                 {a}
                 <button
                   type="button"
                   onClick={() => onChange(value.filter((x) => x !== a))}
                   aria-label={`Quitar alias ${a}`}
-                  className="flex h-9 w-9 items-center justify-center text-muted hover:text-ink"
+                  className="flex h-11 w-11 items-center justify-center text-muted hover:text-ink"
                 >
                   ✕
                 </button>

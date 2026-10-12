@@ -100,6 +100,11 @@ for (const v of db.exerciseViews) {
   push(`insert into public.exercise_views (client_id, exercise_id, viewed_at) values (${q(v.clientId)}, ${q(v.exerciseId)}, ${ts(v.viewedAt)});`);
 }
 
+push("\n-- ── Solicitudes de acceso ────────────────────────────────────────");
+for (const r of db.accessRequests) {
+  push(`insert into public.access_requests (id, full_name, email, phone, requested_coach_id, case_type, message, status, created_at) values (${q(r.id)}, ${q(r.fullName)}, ${q(r.email)}, ${q(r.phone)}, ${q(r.requestedCoachId)}, ${q(r.caseType)}, ${q(r.message)}, ${q(r.status)}, ${ts(r.createdAt)}) on conflict (id) do nothing;`);
+}
+
 push("\ncommit;\n");
 
 const target = resolve(__dirname, "../supabase/seed.sql");

@@ -4,9 +4,11 @@ import * as tus from "tus-js-client";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getBrowserSupabase } from "@/lib/supabase/browser";
 import { SUPABASE_URL, VIDEO_BUCKET } from "@/lib/supabase/env";
-import { inviteClient } from "@/app/actions/clients";
+import { inviteClient, inviteCoach } from "@/app/actions/clients";
+import { approveAccessRequest, listPublicCoaches, submitAccessRequest } from "@/app/actions/access";
 import type { DataSource } from "../repositories";
 import type {
+  AccessRequest,
   CoachNote,
   Exercise,
   ExerciseView,
@@ -115,6 +117,21 @@ const toRoutine = (r: Row): Routine => ({
   createdAt: r.created_at as string,
 });
 
+const toAccessRequest = (r: Row): AccessRequest => ({
+  id: r.id as string,
+  fullName: r.full_name as string,
+  email: r.email as string,
+  phone: (r.phone as string) ?? null,
+  requestedCoachId: (r.requested_coach_id as string) ?? null,
+  caseType: (r.case_type as AccessRequest["caseType"]) ?? null,
+  message: (r.message as string) ?? null,
+  status: r.status as AccessRequest["status"],
+  createdAt: r.created_at as string,
+  reviewedBy: (r.reviewed_by as string) ?? null,
+  reviewedAt: (r.reviewed_at as string) ?? null,
+  rejectReason: (r.reject_reason as string) ?? null,
+});
+
 const toSession = (r: Row): WorkoutSession => ({
   id: r.id as string,
   clientId: r.client_id as string,
@@ -200,6 +217,10 @@ export const supabaseDataSource: DataSource = {
       const { error } = await sb().auth.updateUser({ password });
       if (error) throw new Error(error.message);
     },
+    async activate() {
+      // La sesión ya la dejó /auth/callback con el link de la invitación.
+      return sessionUser();
+    },
   },
 
   profiles: {
@@ -221,6 +242,11 @@ export const supabaseDataSource: DataSource = {
     },
     async createClient(input) {
       const res = await inviteClient(input);
+      if (!res.ok) throw new Error(res.error);
+      return res.profile;
+    },
+    async createStaff(input) {
+      const res = await inviteCoach(input);
       if (!res.ok) throw new Error(res.error);
       return res.profile;
     },
@@ -406,6 +432,34 @@ export const supabaseDataSource: DataSource = {
           viewedAt: r.viewed_at as string,
         }),
       );
+    },
+  },
+
+  accessRequests: {
+    listCoaches: () => listPublicCoaches(),
+    submit: (input) => submitAccessRequest(input),
+    async list(status = "pending") {
+      const rows = check(
+        await sb().from("access_requests").select("*").eq("status", status).order("created_at", { ascending: false }),
+      ) as Row[];
+      return rows.map(toAccessRequest);
+    },
+    async approve(id) {
+      const res = await approveAccessRequest(id);
+      if (!res.ok) throw new Error(res.error);
+      return { profile: res.profile, activationLink: null };
+    },
+    async reject(id, reason) {
+      const user = await sessionUser();
+      const row = check(
+        await sb()
+          .from("access_requests")
+          .update({ status: "rejected", reviewed_by: user?.id, reviewed_at: new Date().toISOString(), reject_reason: reason?.trim() || null })
+          .eq("id", id)
+          .select()
+          .single(),
+      );
+      return toAccessRequest(row as Row);
     },
   },
 

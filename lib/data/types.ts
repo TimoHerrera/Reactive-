@@ -176,3 +176,26 @@ export function isStaff(role: Role | null | undefined): boolean {
 export function hasVideo(e: Pick<Exercise, "videoPath" | "youtubeUrl"> | null | undefined): boolean {
   return !!e && (!!e.videoPath || !!e.youtubeUrl);
 }
+
+// ── Solicitudes de acceso («¿Primera vez?») ─────────────────────────
+
+export type AccessRequestStatus = "pending" | "approved" | "rejected";
+
+export interface AccessRequest {
+  id: string;
+  fullName: string;
+  email: string;
+  phone: string | null;
+  /** Profe elegido; null = «Todavía no tengo». */
+  requestedCoachId: string | null;
+  caseType: CaseType | null;
+  message: string | null;
+  status: AccessRequestStatus;
+  createdAt: ISODateTime;
+  reviewedBy: string | null;
+  reviewedAt: ISODateTime | null;
+  rejectReason: string | null;
+}
+
+/** Profe que se puede elegir en el formulario público (solo datos públicos). */
+export type PublicCoach = { id: string; fullName: string; title: string | null };

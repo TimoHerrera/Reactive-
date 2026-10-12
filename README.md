@@ -69,6 +69,10 @@ Con `NEXT_PUBLIC_DATA_SOURCE=mock` la app usa datos de demo guardados en el `loc
    ```
 3. En **Authentication → URL Configuration**, agregá `<NEXT_PUBLIC_SITE_URL>/auth/callback` a las Redirect URLs (también la de localhost y la de previews de Vercel: `https://*-reactive4.vercel.app/auth/callback`).
 4. En **Authentication → Providers → Email**, desactivá **«Allow new users to sign up»** (no hay registro público: los clientes se invitan).
+5. En **Authentication → Email Templates**, cambiá el link de estos mails para que pasen por `/auth/confirm`:
+   - **Invite user:** `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite&next=/activar`
+   - **Reset password:** `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/nueva-contrasena`
+6. (Opcional) `ACCESS_IP_SALT`: un texto secreto para el hash de IP del límite anti-spam de «Pedir acceso».
 
 ### 2. Correr las migraciones
 
@@ -106,9 +110,17 @@ Opción B, a mano: en **SQL Editor**, pegá y ejecutá en orden los archivos de 
 - Matching contra la biblioteca: igualdad exacta con el nombre o un alias → reconocido; parecido (fuse.js, `DEFAULT_THRESHOLD` en `lib/import/match.ts`) → «¿Quisiste decir…?»; si no, no encontrado. Al vincular, el texto original se guarda como alias.
 - Planillas de prueba en `docs/ejemplos/` (regenerar con `npx tsx scripts/generate-import-examples.ts`).
 
+## Primera vez / pedir acceso
+
+- En el login, «¿Primera vez? Pedile tu acceso a tu profe» lleva a `/solicitar-acceso`: nombre, email, WhatsApp, profe, tipo de caso y mensaje.
+- El pedido queda en `access_requests` (status `pending`). El anónimo solo puede insertar; leen y revisan coach/admin. Anti-spam: honeypot, 3 pedidos por email por día y 5 por IP por hora (hash de IP, nunca en claro).
+- El profe lo ve en el Panel («Solicitudes de acceso (N)») y en Clientes → «Solicitudes»: **Aprobar** crea el cliente asignado al profe y manda la invitación; **Rechazar** con motivo opcional.
+- La invitación lleva a `/activar` («Creá tu contraseña») y de ahí a Hoy.
+- **Modo mock:** al aprobar, el profe ve el link `/activar?token=…` (simula el mail). La contraseña creada queda guardada en ese navegador.
+
 ## Rutas útiles
 
-- `/`: splash · `/login` · `/recuperar` · `/nueva-contrasena`
+- `/`: splash · `/login` · `/recuperar` · `/nueva-contrasena` · `/solicitar-acceso` · `/activar`
 - `/app`: cliente (Hoy · Mi Rutina · Ejercicios · Perfil)
 - `/coach`: profe/admin (Panel · Clientes · Rutinas · Ejercicios)
 - `/dev/ui`: catálogo de componentes del design system
@@ -121,5 +133,5 @@ Opción B, a mano: en **SQL Editor**, pegá y ejecutá en orden los archivos de 
 - [x] **F3**: experiencia del cliente
 - [x] **F4**: carga manual de rutinas (3 pasos, plantillas, duplicar y editar) + lista de Rutinas
 - [x] **F5**: importación de Excel (plantilla, lectura, errores, matching con alias y vista previa)
-- [ ] F6: Panel, Clientes, Rutinas y pulido
+- [x] **F6**: Panel, Clientes (ficha, alta, edición), Profes, «Primera vez / pedir acceso» y pulido
 - [ ] F7: E2E con Playwright y deploy

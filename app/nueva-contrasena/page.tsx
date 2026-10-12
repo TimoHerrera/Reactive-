@@ -1,14 +1,13 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { AuthHeader } from "@/components/AuthHeader";
 import { Input, PillButton } from "@/components/ui";
 import { data } from "@/lib/data";
 import { homeForRole } from "@/lib/auth/cookies";
+import { hardNavigate } from "@/lib/auth/session-events";
 
 export default function NuevaContrasenaPage() {
-  const router = useRouter();
   const [pwd, setPwd] = useState("");
   const [pwd2, setPwd2] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -22,7 +21,7 @@ export default function NuevaContrasenaPage() {
     try {
       await data.auth.updatePassword(pwd);
       const user = await data.auth.getUser();
-      router.replace(user ? homeForRole(user.role) : "/login");
+      hardNavigate(user ? homeForRole(user.role) : "/login");
     } catch {
       setError("No pudimos guardar la contraseña. Pedí un link nuevo.");
       setBusy(false);

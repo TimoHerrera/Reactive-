@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { data } from "@/lib/data";
 import { subscribeMockDb } from "@/lib/data/mock/store";
+import { onSessionChange } from "@/lib/auth/session-events";
 
 export type QueryState<T> = {
   data: T | undefined;
@@ -48,6 +49,18 @@ export function useQuery<T>(fn: () => Promise<T>, deps: unknown[], opts: { live?
     if (data.kind !== "mock" || !live) return;
     return subscribeMockDb(() => void run(true));
   }, [run, live]);
+
+  // Cambió el usuario (login/logout/activación): se descartan los datos del anterior —y cualquier respuesta
+  // en vuelo— y se vuelve a pedir con la sesión nueva. Nunca se muestran datos de otra sesión.
+  useEffect(
+    () =>
+      onSessionChange(() => {
+        seq.current++;
+        setState({ data: undefined, error: null, loading: true });
+        void run();
+      }),
+    [run],
+  );
 
   const setData = useCallback((updater: (prev: T | undefined) => T | undefined) => {
     setState((s) => ({ ...s, data: updater(s.data) }));

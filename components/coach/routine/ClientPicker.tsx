@@ -32,14 +32,14 @@ export function ClientPicker({
       <div className="relative rounded-md border border-line bg-surface p-2 focus-within:border-accent">
         <div className="flex flex-wrap items-center gap-2">
           {selected.map((c) => (
-            <span key={c.id} className="flex h-10 items-center gap-2 rounded-full bg-surface-2 pl-1 text-small font-semibold">
+            <span key={c.id} className="flex h-11 items-center gap-2 rounded-full bg-surface-2 pl-1 text-small font-semibold">
               <Avatar name={c.fullName} size="xs" />
               {c.fullName}
               <button
                 type="button"
                 onClick={() => onChange(value.filter((x) => x !== c.id))}
                 aria-label={`Quitar a ${c.fullName}`}
-                className="flex h-10 w-9 items-center justify-center text-muted hover:text-ink"
+                className="flex h-11 w-11 items-center justify-center text-muted hover:text-ink"
               >
                 ✕
               </button>
@@ -59,7 +59,7 @@ export function ClientPicker({
             aria-expanded={open && options.length > 0}
             aria-controls={`${id}-list`}
             autoComplete="off"
-            className="h-10 min-w-[8rem] flex-1 bg-transparent px-2 text-body text-ink outline-none placeholder:text-muted"
+            className="h-11 min-w-[8rem] flex-1 bg-transparent px-2 text-body text-ink outline-none placeholder:text-muted"
           />
         </div>
         {open && options.length > 0 && (

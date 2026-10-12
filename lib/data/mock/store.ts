@@ -14,7 +14,14 @@ function load(): Db {
   if (!canPersist()) return buildSeed();
   try {
     const raw = window.localStorage.getItem(KEY);
-    if (raw) return JSON.parse(raw) as Db;
+    if (raw) {
+      const saved = JSON.parse(raw) as Db;
+      // Datos guardados por versiones anteriores: completamos las colecciones nuevas.
+      const seed = buildSeed();
+      saved.accessRequests ??= seed.accessRequests;
+      saved.activations ??= [];
+      return saved;
+    }
   } catch {
     // JSON corrupto o storage bloqueado: arrancamos del seed.
   }

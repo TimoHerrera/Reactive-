@@ -404,4 +404,8 @@ insert into public.exercise_views (client_id, exercise_id, viewed_at) values ('1
 insert into public.exercise_views (client_id, exercise_id, viewed_at) values ('10000000-0000-4000-8000-000000000013', '20000000-0000-4000-8000-000000000006', now() - interval '93600 seconds');
 insert into public.exercise_views (client_id, exercise_id, viewed_at) values ('10000000-0000-4000-8000-000000000013', '20000000-0000-4000-8000-000000000006', now() - interval '90000 seconds');
 
+-- ── Solicitudes de acceso ────────────────────────────────────────
+insert into public.access_requests (id, full_name, email, phone, requested_coach_id, case_type, message, status, created_at) values ('90000000-0000-4000-8000-000000000001', 'Paula D.', 'paula@reactive.test', '+54 9 11 5555-0120', '10000000-0000-4000-8000-000000000002', 'lesion_deportiva', 'Me esguincé la rodilla jugando al vóley. Me recomendó una amiga.', 'pending', now() - interval '18000 seconds') on conflict (id) do nothing;
+insert into public.access_requests (id, full_name, email, phone, requested_coach_id, case_type, message, status, created_at) values ('90000000-0000-4000-8000-000000000002', 'Diego S.', 'diego@reactive.test', '+54 9 11 5555-0121', null, 'rendimiento', null, 'pending', now() - interval '93600 seconds') on conflict (id) do nothing;
+
 commit;

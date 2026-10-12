@@ -1,0 +1,113 @@
+"use server";
+
+// Flujo «Primera vez / pedir acceso» con Supabase.
+// - El pedido lo hace un anónimo: se valida acá (honeypot, duplicados, límite por email/IP) y se inserta con la
+//   anon key, así RLS exige status «pending».
+// - Aprobar: solo staff; crea el cliente, lo asigna al profe y manda la invitación (lleva a /activar).
+import { createHash } from "node:crypto";
+import { createClient } from "@supabase/supabase-js";
+import { headers } from "next/headers";
+import {
+  cleanAccessRequest,
+  duplicateReason,
+  isRateLimited,
+  MESSAGES,
+  RATE_LIMIT,
+  validateAccessRequest,
+  type AccessRequestInput,
+  type SubmitResult,
+} from "@/lib/access/rules";
+import type { Profile, PublicCoach } from "@/lib/data/types";
+import { callerRole, invite } from "@/lib/supabase/invite";
+import { getAdminSupabase, getServerSupabase } from "@/lib/supabase/server";
+
+async function ipHash(): Promise<string | null> {
+  const h = await headers();
+  const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || "";
+  if (!ip) return null;
+  // Nunca guardamos la IP en claro.
+  const salt = process.env.ACCESS_IP_SALT || process.env.SUPABASE_SERVICE_ROLE_KEY || "reactive";
+  return createHash("sha256").update(`${salt}:${ip}`).digest("hex").slice(0, 32);
+}
+
+/** Profes activos para el selector público (solo nombre y especialidad). */
+export async function listPublicCoaches(): Promise<PublicCoach[]> {
+  const admin = getAdminSupabase();
+  const { data } = await admin.from("profiles").select("id, full_name, title").eq("role", "coach").order("full_name");
+  return (data ?? []).map((r) => ({ id: r.id as string, fullName: r.full_name as string, title: (r.title as string) ?? null }));
+}
+
+export async function submitAccessRequest(input: AccessRequestInput): Promise<SubmitResult> {
+  if (input.website) return { ok: false, reason: "spam", message: MESSAGES.spam };
+  const errors = validateAccessRequest(input);
+  if (Object.keys(errors).length) return { ok: false, reason: "invalid", errors };
+
+  const clean = cleanAccessRequest(input);
+  const admin = getAdminSupabase();
+  const hash = await ipHash();
+
+  const [{ data: existing }, { data: recent }] = await Promise.all([
+    admin.from("profiles").select("email").eq("email", clean.email),
+    admin
+      .from("access_requests")
+      .select("email, status, ip_hash, created_at")
+      .gte("created_at", new Date(Date.now() - RATE_LIMIT.perEmailHours * 3_600_000).toISOString())
+      .or(`email.eq."${clean.email}"${hash ? `,ip_hash.eq.${hash}` : ""}`),
+  ]);
+  const { data: pending } = await admin.from("access_requests").select("email, status").eq("email", clean.email).eq("status", "pending");
+
+  const dup = duplicateReason(clean.email, pending ?? [], (existing ?? []).map((r) => r.email as string));
+  if (dup) return { ok: false, reason: dup, message: MESSAGES[dup] };
+  const recentRows = (recent ?? []).map((r) => ({ email: r.email as string, ipHash: r.ip_hash as string | null, createdAt: r.created_at as string }));
+  if (isRateLimited(recentRows, clean.email, hash)) return { ok: false, reason: "rate-limited", message: MESSAGES["rate-limited"] };
+
+  // Insert como anónimo: RLS solo deja status «pending».
+  const anon = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+    auth: { persistSession: false },
+  });
+  const id = crypto.randomUUID();
+  const { error } = await anon.from("access_requests").insert({
+    id,
+    full_name: clean.fullName,
+    email: clean.email,
+    phone: clean.phone,
+    requested_coach_id: clean.requestedCoachId,
+    case_type: clean.caseType,
+    message: clean.message,
+    status: "pending",
+    ip_hash: hash,
+  });
+  if (error) return { ok: false, reason: "error", message: MESSAGES.error };
+  return { ok: true, id };
+}
+
+export async function approveAccessRequest(
+  id: string,
+): Promise<{ ok: true; profile: Profile } | { ok: false; error: string }> {
+  const caller = await callerRole();
+  if (!caller || (caller.role !== "coach" && caller.role !== "admin")) return { ok: false, error: "No autorizado." };
+  const supabase = await getServerSupabase(); // RLS: solo staff lee/actualiza
+  const { data: r } = await supabase.from("access_requests").select("*").eq("id", id).maybeSingle();
+  if (!r) return { ok: false, error: "No encontramos la solicitud." };
+  if (r.status !== "pending") return { ok: false, error: "Esta solicitud ya fue revisada." };
+
+  const res = await invite(
+    {
+      fullName: r.full_name,
+      email: r.email,
+      phone: r.phone,
+      caseType: r.case_type,
+      goal: r.message,
+      coachId: r.requested_coach_id ?? caller.id,
+      role: "client",
+    },
+    caller.id,
+    "/activar",
+  );
+  if (!res.ok) return res;
+  await supabase
+    .from("access_requests")
+    .update({ status: "approved", reviewed_by: caller.id, reviewed_at: new Date().toISOString() })
+    .eq("id", id);
+  return res;
+}

@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { AuthHeader } from "@/components/AuthHeader";
 import { Input, PillButton } from "@/components/ui";
 import { data } from "@/lib/data";
 import { DEMO_PASSWORD, IDS } from "@/lib/data/seed";
 import { homeForRole } from "@/lib/auth/cookies";
+import { hardNavigate } from "@/lib/auth/session-events";
 import { getDb } from "@/lib/data/mock/store";
 
 function safeNext(next: string | null, home: string) {
@@ -18,7 +19,6 @@ function safeNext(next: string | null, home: string) {
 }
 
 export function LoginForm() {
-  const router = useRouter();
   const params = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -37,8 +37,8 @@ export function LoginForm() {
       setBusy(false);
       return;
     }
-    router.replace(safeNext(params.get("next"), homeForRole(res.user.role)));
-    router.refresh();
+    // Recarga real: no queda nada en memoria de una sesión anterior.
+    hardNavigate(safeNext(params.get("next"), homeForRole(res.user.role)));
   }
 
   function onSubmit(ev: FormEvent) {
@@ -133,9 +133,12 @@ export function LoginForm() {
         )}
 
         <footer className="mt-auto border-t border-line pb-8 pt-6 text-center">
-          <p className="text-body">
-            ¿Primera vez? <span className="text-muted">Pedile tu acceso a tu profe.</span>
-          </p>
+          <Link
+            href="/solicitar-acceso"
+            className="inline-flex min-h-[44px] items-center text-body underline decoration-accent decoration-2 underline-offset-4 hover:text-ink"
+          >
+            ¿Primera vez?&nbsp;<span className="text-title">Pedile tu acceso a tu profe.</span>
+          </Link>
           <p className="mt-3 text-small text-muted">Clientes y profes usan el mismo acceso.</p>
         </footer>
       </form>
