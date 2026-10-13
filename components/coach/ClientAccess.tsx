@@ -4,12 +4,13 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { DeleteForever } from "@/components/coach/AccountParts";
 import { useSession } from "@/components/SessionProvider";
+import { canDeleteUser } from "@/lib/access/scope";
 import { data, type Profile } from "@/lib/data";
 
 /**
  * Acceso del cliente (ficha):
  * - Desactivar / reactivar: admin o su profe. Desactivado no entra, se oculta de las listas y el historial queda.
- * - Eliminar definitivamente: solo admin, escribiendo el nombre. Libera el email.
+ * - Eliminar definitivamente: admin o su profe, escribiendo el nombre. Libera el email.
  */
 export function ClientAccess({ client, onChanged }: { client: Profile; onChanged: (p: Profile) => void }) {
   const { user } = useSession();
@@ -57,7 +58,7 @@ export function ClientAccess({ client, onChanged }: { client: Profile; onChanged
           ✕ {error}
         </p>
       )}
-      {user?.role === "admin" && (
+      {canDeleteUser(user, client) && (
         <DeleteForever
           name={client.fullName}
           what="Se borran la cuenta, el perfil, las rutinas, las sesiones, las observaciones y las solicitudes. El email queda libre."

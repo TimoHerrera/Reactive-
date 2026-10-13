@@ -25,8 +25,6 @@ test("el profe desactiva a su cliente: no entra, se oculta y vuelve con «Reacti
   await page.goto(`/coach/clientes/${IDS.martina}`);
   await page.getByRole("button", { name: "Desactivar" }).click();
   await expect(page.getByRole("button", { name: "Reactivar" })).toBeVisible();
-  // Un profe no puede eliminar definitivamente.
-  await expect(page.getByRole("button", { name: "Eliminar definitivamente" })).toHaveCount(0);
 
   await page.goto("/coach/clientes");
   await expect(page.getByRole("link", { name: /Sofía R\./ })).toBeVisible();
@@ -75,6 +73,30 @@ test("el admin elimina un cliente escribiendo su nombre; el email queda libre; r
   await page.waitForLoadState("load");
   await page.goto("/coach/clientes");
   await expect(page.getByRole("link", { name: /Lucas B\./ })).toBeVisible();
+});
+
+test("el profe elimina a su propio cliente; los de otros profes ni le aparecen", async ({ page }) => {
+  await quickLogin(page, "Nico (profe)");
+  await page.goto("/coach/clientes");
+  await page.getByRole("link", { name: /Federico A\./ }).click();
+  await page.getByRole("button", { name: "Eliminar definitivamente" }).click();
+  const confirm = page.getByRole("group", { name: "Eliminar definitivamente" });
+  await confirm.getByLabel(/Escribí «Federico A\.»/).fill("Federico A.");
+  await confirm.getByRole("button", { name: "Eliminar", exact: true }).click();
+  await expect(page).toHaveURL(/\/coach\/clientes$/);
+  await expect(page.getByRole("link", { name: /Sofía R\./ })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Federico A\./ })).toHaveCount(0);
+  await logoutCoach(page);
+
+  // Caro: solo ve a su cliente; los de Nico no aparecen y por URL no hay nada que eliminar.
+  await loginWith(page, "caro@reactive.test", DEMO_PASSWORD);
+  await page.waitForURL(/\/coach$/);
+  await page.goto("/coach/clientes");
+  await expect(page.getByRole("link", { name: /Bruno S\./ })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Martina G\./ })).toHaveCount(0);
+  await page.goto(`/coach/clientes/${IDS.martina}`);
+  await expect(page.getByRole("alert").filter({ hasText: "No tenés acceso" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Eliminar definitivamente" })).toHaveCount(0);
 });
 
 test("eliminar a un profe con clientes exige reasignarlos", async ({ page }) => {

@@ -49,7 +49,8 @@ export interface ProfilesRepo {
    */
   setClientActive(id: string, active: boolean): Promise<Profile>;
   /**
-   * Eliminar definitivamente (solo admin, nunca a sí mismo). `confirmName` tiene que coincidir con el nombre.
+   * Eliminar definitivamente. Admin: a cualquiera menos a sí mismo. Profe: solo a sus propios clientes
+   * (los de otros profes dan «no encontrado»). `confirmName` tiene que coincidir con el nombre.
    * Cliente: borra cuenta, perfil, rutinas, sesiones, observaciones y solicitudes.
    * Profe: exige `reassignTo` si tiene clientes; sus ejercicios y plantillas pasan al admin.
    * Después el email queda libre.

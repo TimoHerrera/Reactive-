@@ -9,6 +9,9 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
+  // Cada test levanta su propio Chromium contra un solo `next start`: con más de 3 en paralelo,
+  // en una notebook cargada se ahogan y vencen por tiempo (no por bugs).
+  workers: 3,
   timeout: 60_000,
   expect: { timeout: 10_000 },
   reporter: [["list"], ["html", { open: "never" }]],

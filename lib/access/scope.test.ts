@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   authorLine,
   canEditRoutine,
+  canDeleteUser,
   canReassignClient,
   canSeeAccessRequest,
   canSeeClient,
@@ -50,6 +51,16 @@ describe("clientes", () => {
     expect(coachForNewClient({ id: "m", role: "client" }, "n")).toBeNull();
     expect(canReassignClient(admin)).toBe(true);
     expect(canReassignClient(nico)).toBe(false);
+  });
+
+  it("eliminar: el profe solo a sus propios clientes; el admin a cualquiera menos a sí mismo", () => {
+    expect(canDeleteUser(nico, martina)).toBe(true);
+    expect(canDeleteUser(jano, martina)).toBe(false);
+    expect(canDeleteUser(nico, { id: "j", role: "coach", coachId: null })).toBe(false);
+    expect(canDeleteUser(admin, martina)).toBe(true);
+    expect(canDeleteUser(admin, { id: "n", role: "coach", coachId: null })).toBe(true);
+    expect(canDeleteUser(admin, { id: "a", role: "admin", coachId: null })).toBe(false);
+    expect(canDeleteUser({ id: "m", role: "client" }, martina)).toBe(false);
   });
 });
 

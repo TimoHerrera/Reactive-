@@ -2,10 +2,11 @@
 
 // Bajas de usuarios con Supabase (service role, nunca llega al cliente).
 // - Desactivar/reactivar cliente: admin o su profe. Bloquea el login (ban) y RLS le corta la lectura.
-// - Eliminar definitivamente: solo admin. Borra el usuario de auth → el perfil cae en cascada y, con él,
+// - Eliminar definitivamente: admin (a cualquiera) o el profe (solo sus clientes). Borra el usuario de auth → el perfil cae en cascada y, con él,
 //   rutinas, sesiones, checks, vistas y observaciones (FKs de 0001). El email queda libre.
 // Mismas reglas que el mock (lib/data/mock/index.ts → setClientActive / remove).
 import { normalizeEmail } from "@/lib/access/rules";
+import { canDeleteUser } from "@/lib/access/scope";
 import { sameName } from "@/lib/data/errors";
 import type { Profile } from "@/lib/data/types";
 import { activeStaffId, callerRole, toProfileRow } from "@/lib/supabase/invite";
@@ -44,13 +45,19 @@ export async function setClientActive(clientId: string, active: boolean): Promis
 
 export async function deleteUser(profileId: string, opts: { confirmName: string; reassignTo?: string | null }): Promise<{ ok: true } | Fail> {
   const caller = await activeCaller();
-  if (!caller || caller.role !== "admin") return { ok: false, error: "Solo un admin puede eliminar usuarios." };
+  if (!caller) return { ok: false, error: "No autorizado." };
   if (profileId === caller.id) return { ok: false, error: "No podés eliminarte a vos." };
 
-  const admin = getAdminSupabase();
-  const { data: p } = await admin.from("profiles").select("id, role, full_name, email").eq("id", profileId).maybeSingle();
+  // RLS decide qué ve: el admin, a todos; el profe, solo sus clientes (los de otros profes ni existen para él).
+  const supabase = await getServerSupabase();
+  const { data: p } = await supabase.from("profiles").select("id, role, coach_id, full_name, email").eq("id", profileId).maybeSingle();
   if (!p) return { ok: false, error: "Usuario no encontrado." };
+  // Admin: cualquiera. Profe: solo sus propios clientes.
+  if (!canDeleteUser(caller, { id: p.id, role: p.role, coachId: p.coach_id })) {
+    return { ok: false, error: "Solo un admin puede eliminar profes." };
+  }
   if (!sameName(opts.confirmName, p.full_name)) return { ok: false, error: `Escribí «${p.full_name}» para confirmar.` };
+  const admin = getAdminSupabase();
 
   if (p.role === "client") {
     // Solicitudes con su email (o vinculadas a él). El resto cae en cascada al borrar el perfil.

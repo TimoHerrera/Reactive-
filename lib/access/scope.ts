@@ -63,6 +63,19 @@ export function canReassignClient(v: Viewer): boolean {
   return isAdmin(v);
 }
 
+/**
+ * Eliminar definitivamente:
+ * - admin: a cualquiera menos a sí mismo (clientes y profes);
+ * - profe: solo a sus propios clientes (los de otros profes ni le aparecen);
+ * - cliente: a nadie.
+ */
+export function canDeleteUser(v: Viewer, target: ClientRef | null | undefined): boolean {
+  if (!v || !target || target.id === v.id) return false;
+  if (isAdmin(v)) return true;
+  if (isCoach(v)) return target.role === "client" && target.coachId === v.id;
+  return false;
+}
+
 /** «Cargada por X · editada por Y» (si la editó otra persona). */
 export function authorLine(createdBy: string | null, updatedBy: string | null, nameOf: (id: string) => string | null): string | null {
   const author = createdBy ? nameOf(createdBy) : null;

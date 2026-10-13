@@ -5,6 +5,7 @@ import type { DataSource } from "../repositories";
 import { DEMO_PASSWORD } from "../seed";
 import { accountStatus, isStaff, type AccessRequest, type Profile, type Routine, type RoutineTree, type SessionUser } from "../types";
 import {
+  canDeleteUser,
   canEditRoutine,
   canReassignClient,
   canSeeAccessRequest,
@@ -331,13 +332,16 @@ export const mockDataSource: DataSource = {
       );
     },
     async remove(id, { confirmName, reassignTo = null }) {
-      const me = currentUser();
-      if (!canManageTeam(me)) throw new Error("Solo un admin puede eliminar usuarios.");
+      const me = requireStaff();
       mutate((db) => {
-        const p = db.profiles.find((x) => x.id === id) ?? notFound("Usuario");
-        if (p.id === me!.id) throw new Error("No podés eliminarte a vos.");
+        const p = db.profiles.find((x) => x.id === id);
+        // Un cliente de otro profe: como si no existiera (ni siquiera le aparece).
+        if (!p || (p.role === "client" && !canSeeClient(me, p))) notFound("Usuario");
+        if (p.id === me.id) throw new Error("No podés eliminarte a vos.");
+        // Admin: cualquiera. Profe: solo sus propios clientes.
+        if (!canDeleteUser(me, p)) throw new Error("Solo un admin puede eliminar profes.");
         if (!sameName(confirmName, p.fullName)) throw new Error(`Escribí «${p.fullName}» para confirmar.`);
-        purgeUser(db, p, me!.id, reassignTo);
+        purgeUser(db, p, me.id, reassignTo);
       });
       const pwds = storedPasswords();
       delete pwds[id];

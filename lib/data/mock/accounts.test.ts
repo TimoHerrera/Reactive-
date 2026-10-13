@@ -114,10 +114,27 @@ describe("desactivar", () => {
 });
 
 describe("eliminar definitivamente", () => {
-  it("un profe no puede eliminar usuarios", async () => {
-    await as(NICO);
-    await expect(data.profiles.remove(IDS.martina, { confirmName: "Martina G." })).rejects.toThrow(/Solo un admin/);
+  it("el profe elimina solo a sus propios clientes: ni los de otro profe ni a otros profes", async () => {
+    // Caro no puede eliminar a Martina (es de Nico): para ella, no existe.
+    await as(CARO);
+    await expect(data.profiles.remove(IDS.martina, { confirmName: "Martina G." })).rejects.toThrow(/no encontrado/);
     expect(profile(IDS.martina)).toBeDefined();
+    // Ni a otro profe.
+    await expect(data.profiles.remove(IDS.nico, { confirmName: "Nico R." })).rejects.toThrow(/Solo un admin/);
+    expect(profile(IDS.nico)).toBeDefined();
+
+    // Nico sí elimina a su propia clienta, con todo lo suyo; el email queda libre.
+    await as(NICO);
+    await data.profiles.remove(IDS.martina, { confirmName: "Martina G." });
+    expect(profile(IDS.martina)).toBeUndefined();
+    expect(getDb().routines.filter((r) => r.clientId === IDS.martina)).toEqual([]);
+    expect((await data.profiles.createClient({ fullName: "Martina G.", email: "martina@reactive.test" })).coachId).toBe(IDS.nico);
+  });
+
+  it("un cliente no puede eliminar a nadie", async () => {
+    await as("martina@reactive.test");
+    await expect(data.profiles.remove(IDS.sofia, { confirmName: "Sofía R." })).rejects.toThrow();
+    expect(profile(IDS.sofia)).toBeDefined();
   });
 
   it("hay que escribir el nombre, y el admin no se elimina a sí mismo", async () => {

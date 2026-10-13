@@ -150,7 +150,7 @@ Desde ahí el admin suma el resto del equipo en **Equipo**, y los profes invitan
   - solicitud pendiente → se avisa y no se duplica.
   - Si al aprobar el email ya tiene cuenta, se ofrece **vincular** la solicitud a ese usuario (`linked_profile_id`) en vez de crear otro.
 - **Desactivar** (admin, o el profe con sus propios clientes): bloquea el login al instante, oculta a la persona de las listas (filtro «Desactivados» en Clientes y Equipo) y conserva el historial. Se vuelve con «Reactivar». El email sigue reservado.
-- **Eliminar definitivamente** (solo admin, escribiendo el nombre de la persona para confirmar):
+- **Eliminar definitivamente** (escribiendo el nombre de la persona para confirmar). El admin elimina a cualquiera menos a sí mismo; el profe, solo a sus propios clientes (los de otros profes ni le aparecen: por URL ven «No tenés acceso»):
   - Cliente: borra la cuenta de auth, el perfil, las rutinas, las sesiones, las observaciones y las solicitudes.
   - Profe: primero obliga a reasignar sus clientes. Sus ejercicios y plantillas pasan al admin.
   - En los dos casos, el email queda libre. Server action: `app/actions/accounts.ts`.
@@ -178,7 +178,7 @@ Cubren:
 - **Cambio de usuario:** cliente → logout → profe (el Panel carga sus datos, 3 veces seguidas) y profe → logout → cliente (ve su rutina y nada del profe).
 - **Equipo:** el admin invita a un profe → el profe activa su cuenta con el link → ve el Panel; activación con código; un profe no puede entrar a «Equipo».
 - **Dos profes:** Nico carga una rutina → la clienta ve «Cargada por Nico R.»; Jano (nuevo) no ve los clientes de Nico ni los abre por URL, pero usa ejercicios y plantillas; el admin ve a todos y filtra por profe.
-- **Usuarios:** email repetido (con otras mayúsculas) no se crea y ofrece «Ver ficha»; el profe desactiva a su cliente (no entra, se oculta, filtro «Desactivados», «Reactivar»); el admin elimina un cliente escribiendo su nombre y restablece la demo; eliminar a un profe con clientes exige reasignarlos.
+- **Usuarios:** email repetido (con otras mayúsculas) no se crea y ofrece «Ver ficha»; el profe desactiva a su cliente (no entra, se oculta, filtro «Desactivados», «Reactivar»); el admin elimina un cliente escribiendo su nombre y restablece la demo; el profe elimina a su propio cliente y Caro no ve ni puede borrar a los de Nico; eliminar a un profe con clientes exige reasignarlos.
 
 El reporte HTML queda en `playwright-report/` (`npx playwright show-report`).
 
