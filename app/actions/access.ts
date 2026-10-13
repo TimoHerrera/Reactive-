@@ -18,7 +18,8 @@ import {
   type SubmitResult,
 } from "@/lib/access/rules";
 import type { Profile, PublicCoach } from "@/lib/data/types";
-import { activeStaffId, callerRole, invite } from "@/lib/supabase/invite";
+import { DUPLICATE_EMAIL_MESSAGE, existingUserFor, type ExistingUser } from "@/lib/data/errors";
+import { activeStaffId, callerRole, invite, profileByEmail, toProfileRow } from "@/lib/supabase/invite";
 import { getAdminSupabase, getServerSupabase } from "@/lib/supabase/server";
 
 async function ipHash(): Promise<string | null> {
@@ -53,7 +54,7 @@ export async function submitAccessRequest(input: AccessRequestInput): Promise<Su
   const hash = await ipHash();
 
   const [{ data: existing }, { data: recent }] = await Promise.all([
-    admin.from("profiles").select("email").eq("email", clean.email),
+    admin.from("profiles").select("email, disabled_at").eq("email", clean.email),
     admin
       .from("access_requests")
       .select("email, status, ip_hash, created_at")
@@ -62,7 +63,8 @@ export async function submitAccessRequest(input: AccessRequestInput): Promise<Su
   ]);
   const { data: pending } = await admin.from("access_requests").select("email, status").eq("email", clean.email).eq("status", "pending");
 
-  const dup = duplicateReason(clean.email, pending ?? [], (existing ?? []).map((r) => r.email as string));
+  const accounts = (existing ?? []).map((r) => ({ email: r.email as string, disabledAt: r.disabled_at as string | null }));
+  const dup = duplicateReason(clean.email, pending ?? [], accounts);
   if (dup) return { ok: false, reason: dup, message: MESSAGES[dup] };
   const recentRows = (recent ?? []).map((r) => ({ email: r.email as string, ipHash: r.ip_hash as string | null, createdAt: r.created_at as string }));
   if (isRateLimited(recentRows, clean.email, hash)) return { ok: false, reason: "rate-limited", message: MESSAGES["rate-limited"] };
@@ -89,8 +91,8 @@ export async function submitAccessRequest(input: AccessRequestInput): Promise<Su
 
 export async function approveAccessRequest(
   id: string,
-  opts: { coachId?: string | null } = {},
-): Promise<{ ok: true; profile: Profile } | { ok: false; error: string }> {
+  opts: { coachId?: string | null; linkExisting?: boolean } = {},
+): Promise<{ ok: true; profile: Profile | null; linked: boolean } | { ok: false; error: string; existing?: ExistingUser | null }> {
   const caller = await callerRole();
   if (!caller || (caller.role !== "coach" && caller.role !== "admin")) return { ok: false, error: "No autorizado." };
   const supabase = await getServerSupabase(); // RLS: el profe solo ve las que lo eligieron; el admin, todas
@@ -100,6 +102,21 @@ export async function approveAccessRequest(
   // El profe se lo queda; el admin elige a quién (por defecto, el que eligió la persona).
   const coachId = await activeStaffId(caller.role === "admin" ? (opts.coachId ?? r.requested_coach_id ?? caller.id) : caller.id);
   if (!coachId) return { ok: false, error: "Elegí un profe activo." };
+
+  // Una persona = un email: si ya tiene cuenta, no se crea otra. Se ofrece vincular la solicitud a esa cuenta.
+  const existing = await profileByEmail(r.email);
+  if (existing) {
+    if (!opts.linkExisting) return { ok: false, error: DUPLICATE_EMAIL_MESSAGE, existing: existingUserFor(caller, existing) };
+    const admin = getAdminSupabase();
+    if (existing.role === "client" && !existing.coachId) await admin.from("profiles").update({ coach_id: coachId }).eq("id", existing.id);
+    await admin
+      .from("access_requests")
+      .update({ status: "approved", reviewed_by: caller.id, reviewed_at: new Date().toISOString(), linked_profile_id: existing.id })
+      .eq("id", id);
+    // El perfil se devuelve solo si quien aprueba lo puede ver (RLS).
+    const { data: visible } = await supabase.from("profiles").select("*").eq("id", existing.id).maybeSingle();
+    return { ok: true, profile: visible ? toProfileRow(visible) : null, linked: true };
+  }
 
   const res = await invite(
     {
@@ -111,7 +128,7 @@ export async function approveAccessRequest(
       coachId,
       role: "client",
     },
-    caller.id,
+    caller,
     "/activar",
   );
   if (!res.ok) return res;
@@ -119,5 +136,5 @@ export async function approveAccessRequest(
     .from("access_requests")
     .update({ status: "approved", reviewed_by: caller.id, reviewed_at: new Date().toISOString() })
     .eq("id", id);
-  return res;
+  return { ok: true, profile: res.profile, linked: false };
 }

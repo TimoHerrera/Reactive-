@@ -806,6 +806,7 @@ export function buildSeed(today: string = todayISO(), now: Date = new Date()): D
       reviewedBy: null,
       reviewedAt: null,
       rejectReason: null,
+      linkedProfileId: null,
     },
     {
       id: seedId(9, 2),
@@ -820,6 +821,7 @@ export function buildSeed(today: string = todayISO(), now: Date = new Date()): D
       reviewedBy: null,
       reviewedAt: null,
       rejectReason: null,
+      linkedProfileId: null,
     },
   ];
 

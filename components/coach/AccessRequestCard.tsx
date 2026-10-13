@@ -4,10 +4,11 @@ import Link from "next/link";
 import { useState } from "react";
 import { Avatar } from "@/components/ui";
 import { CASE_TYPE_LABEL, data, type AccessRequest, type Profile } from "@/lib/data";
+import { isDuplicateEmail } from "@/lib/data/errors";
 import { formatRelative } from "@/lib/dates";
 
 type Done =
-  | { kind: "approved"; profile: Profile; link: string | null }
+  | { kind: "approved"; profile: Profile | null; link: string | null; linked: boolean }
   | { kind: "rejected" };
 
 /** Solicitud de acceso con «Aprobar» (crea el cliente e invita) y «Rechazar» (motivo opcional). */
@@ -30,16 +31,22 @@ export function AccessRequestCard({
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<Done | null>(null);
   const [copied, setCopied] = useState(false);
+  // El email ya tiene cuenta: se ofrece vincular la solicitud a esa cuenta (una persona = un email).
+  const [existing, setExisting] = useState<{ href: string | null } | null>(null);
 
-  const approve = async () => {
+  const approve = async (linkExisting = false) => {
     setBusy(true);
     setError(null);
     try {
-      const res = await data.accessRequests.approve(r.id, assignable ? { coachId: assignTo || null } : undefined);
-      setDone({ kind: "approved", profile: res.profile, link: res.activationLink });
+      const res = await data.accessRequests.approve(r.id, {
+        ...(assignable ? { coachId: assignTo || null } : {}),
+        linkExisting,
+      });
+      setDone({ kind: "approved", profile: res.profile, link: res.activationLink, linked: res.linked });
       onChanged();
     } catch (e) {
-      setError((e as Error).message);
+      if (isDuplicateEmail(e)) setExisting({ href: e.existing?.href ?? null });
+      else setError((e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -71,8 +78,16 @@ export function AccessRequestCard({
     return (
       <li className="space-y-3 rounded-lg border-2 border-success bg-surface p-4">
         <p className="text-body">
-          ✓ <strong>{r.fullName}</strong> ya es cliente.{" "}
-          {done.link ? "Modo demo: este es el link de activación que le llegaría por mail." : `Le mandamos la invitación a ${r.email}.`}
+          {done.linked ? (
+            <>
+              ✓ Vinculamos la solicitud de <strong>{r.fullName}</strong> a su cuenta existente. No se creó otro usuario.
+            </>
+          ) : (
+            <>
+              ✓ <strong>{r.fullName}</strong> ya es cliente.{" "}
+              {done.link ? "Modo demo: este es el link de activación que le llegaría por mail." : `Le mandamos la invitación a ${r.email}.`}
+            </>
+          )}
         </p>
         {done.link && (
           <div className="flex gap-2">
@@ -88,9 +103,11 @@ export function AccessRequestCard({
             </button>
           </div>
         )}
-        <Link href={`/coach/clientes/${done.profile.id}`} className="inline-flex min-h-[44px] items-center text-small font-semibold underline underline-offset-4">
-          Ver su ficha y asignarle una rutina →
-        </Link>
+        {done.profile?.role === "client" && (
+          <Link href={`/coach/clientes/${done.profile.id}`} className="inline-flex min-h-[44px] items-center text-small font-semibold underline underline-offset-4">
+            Ver su ficha y asignarle una rutina →
+          </Link>
+        )}
       </li>
     );
   }
@@ -140,7 +157,30 @@ export function AccessRequestCard({
         </div>
       )}
 
-      {mode === "idle" ? (
+      {existing && mode === "idle" ? (
+        <div className="mt-3 space-y-2 rounded-md border border-warning bg-warning/10 p-3" role="alert">
+          <p className="text-small">Ya existe una cuenta con el email {r.email}. No hace falta crear otra.</p>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void approve(true)}
+              className="h-12 rounded-full bg-ink text-small font-bold text-bg disabled:opacity-50"
+            >
+              {busy ? "Vinculando…" : "Vincular a esa cuenta"}
+            </button>
+            {existing.href ? (
+              <Link href={existing.href} className="flex h-12 items-center justify-center rounded-full border border-line text-small font-bold">
+                Ver ficha
+              </Link>
+            ) : (
+              <button type="button" onClick={() => setExisting(null)} className="h-12 rounded-full border border-line text-small font-bold">
+                Cancelar
+              </button>
+            )}
+          </div>
+        </div>
+      ) : mode === "idle" ? (
         <div className="mt-3 grid grid-cols-2 gap-2">
           <button type="button" disabled={busy || (!!assignable && !assignTo)} onClick={() => void approve()} className="h-12 rounded-full bg-ink text-small font-bold text-bg disabled:opacity-50">
             {busy ? "Aprobando…" : "Aprobar e invitar"}

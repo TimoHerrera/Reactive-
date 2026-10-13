@@ -6,9 +6,10 @@ import { useSession } from "@/components/SessionProvider";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { data } from "@/lib/data";
 import { useQuery } from "@/lib/hooks";
-import { resetMockDb } from "@/lib/data/mock/store";
+import { hardNavigate } from "@/lib/auth/session-events";
+import { resetDemoData } from "@/lib/data/mock";
 
-/** Avatar del profe con menú: Mi perfil, Equipo (admin), restablecer demo (mock) y cerrar sesión. */
+/** Avatar del profe con menú: Mi perfil, Equipo (admin), restablecer datos de demo (admin, mock) y cerrar sesión. */
 export function CoachMenu() {
   const { user, signOut } = useSession();
   const me = useQuery(() => (user ? data.profiles.get(user.id) : Promise.resolve(null)), [user?.id]);
@@ -55,19 +56,17 @@ export function CoachMenu() {
               Equipo
             </Link>
           )}
-          {data.kind === "mock" && (
+          {data.kind === "mock" && user.role === "admin" && (
             <button
               role="menuitem"
               type="button"
               className={item}
               onClick={() => {
-                if (window.confirm("¿Volver a los datos de demo? Se pierde lo que cargaste en este navegador.")) {
-                  resetMockDb();
-                  setOpen(false);
-                }
+                if (!window.confirm("¿Restablecer los datos de demo? Se borran los usuarios, rutinas y videos de prueba de este navegador.")) return;
+                void resetDemoData().then(() => hardNavigate("/coach"));
               }}
             >
-              Restablecer datos demo
+              Restablecer datos de demo
             </button>
           )}
           <button role="menuitem" type="button" className={`${item} text-danger-ink`} onClick={() => void signOut()}>

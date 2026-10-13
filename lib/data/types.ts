@@ -72,7 +72,8 @@ export function accountStatus(p: Pick<Profile, "activatedAt" | "disabledAt">): A
 export interface CoachNote {
   id: string;
   clientId: string;
-  authorId: string;
+  /** null si el autor ya no existe (profe eliminado). */
+  authorId: string | null;
   body: string;
   createdAt: ISODateTime;
 }
@@ -214,6 +215,8 @@ export interface AccessRequest {
   reviewedBy: string | null;
   reviewedAt: ISODateTime | null;
   rejectReason: string | null;
+  /** Si el email ya tenía cuenta, la solicitud se vincula a ese usuario en vez de crear otro. */
+  linkedProfileId: string | null;
 }
 
 /** Profe que se puede elegir en el formulario público (solo datos públicos). */

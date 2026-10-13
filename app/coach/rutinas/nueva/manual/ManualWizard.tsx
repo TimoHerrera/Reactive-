@@ -35,7 +35,8 @@ export function ManualWizard() {
       data.routines.list(),
       data.exercises.list(),
     ]);
-    return { clients, routines, exercises };
+    // A un cliente desactivado no se le asignan rutinas nuevas.
+    return { clients: clients.filter((c) => !c.disabledAt), routines, exercises };
   }, []);
 
   useEffect(() => {

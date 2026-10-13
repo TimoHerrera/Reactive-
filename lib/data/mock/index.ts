@@ -1,6 +1,6 @@
 import { normalizeText } from "@/lib/text";
 import { encodeMockSession, MOCK_SESSION_COOKIE } from "@/lib/auth/cookies";
-import { emitSessionChange } from "@/lib/auth/session-events";
+import { emitSessionChange, emitSessionRevoked } from "@/lib/auth/session-events";
 import type { DataSource } from "../repositories";
 import { DEMO_PASSWORD } from "../seed";
 import { accountStatus, isStaff, type AccessRequest, type Profile, type Routine, type RoutineTree, type SessionUser } from "../types";
@@ -30,9 +30,11 @@ import {
   duplicateReason,
   isRateLimited,
   MESSAGES,
+  normalizeEmail,
   validateAccessRequest,
 } from "@/lib/access/rules";
-import { delay, getDb, mutate, uuid } from "./store";
+import { DuplicateEmailError, existingUserFor, sameName } from "../errors";
+import { delay, getDb, mutate, resetMockDb, uuid } from "./store";
 import { mockVideos } from "./videos";
 
 const SESSION_KEY = "reactive-mock-session";
@@ -48,12 +50,21 @@ function storedPasswords(): Record<string, string> {
 }
 const now = () => new Date().toISOString();
 
-/** Usuario de la sesión. Un usuario desactivado no tiene sesión: pierde el acceso al instante. */
+/**
+ * Usuario de la sesión. Desactivado o eliminado: la sesión se corta en su próxima acción
+ * (se borra y se avisa para que la app lo mande al login).
+ */
 function currentUser(): SessionUser | null {
   if (typeof window === "undefined") return null;
   const id = window.localStorage.getItem(SESSION_KEY);
-  const p = id ? getDb().profiles.find((x) => x.id === id) : null;
-  if (!p || p.disabledAt) return null;
+  if (!id) return null;
+  const p = getDb().profiles.find((x) => x.id === id);
+  if (!p || p.disabledAt) {
+    window.localStorage.removeItem(SESSION_KEY);
+    setSessionCookie(null);
+    setTimeout(emitSessionRevoked, 0);
+    return null;
+  }
   return { id: p.id, role: p.role, fullName: p.fullName, email: p.email };
 }
 
@@ -104,6 +115,57 @@ const activeStaff = (db: MockDb, id: string | null | undefined) => {
   return p && isStaff(p.role) && !p.disabledAt ? p : null;
 };
 
+// ── Un email = una persona (normalizado: trim + minúsculas) ─────────
+const byEmail = (db: MockDb, email: string) => db.profiles.find((p) => normalizeEmail(p.email) === normalizeEmail(email));
+function assertEmailFree(db: MockDb, me: Viewer, email: string, exceptId?: string) {
+  const p = byEmail(db, email);
+  if (p && p.id !== exceptId) throw new DuplicateEmailError(existingUserFor(me, p));
+}
+
+/**
+ * Eliminar definitivamente (lo mismo que hacen las FKs + app/actions/accounts.ts en Supabase).
+ * - Cliente: perfil, rutinas (con su árbol), sesiones, checks, vistas, observaciones y solicitudes.
+ * - Profe: exige reasignar sus clientes; ejercicios y plantillas pasan al admin; el resto de sus
+ *   referencias queda en null (como «on delete set null»).
+ */
+function purgeUser(db: MockDb, p: Profile, adminId: string, reassignTo: string | null) {
+  if (p.role === "client") {
+    const routineIds = new Set(db.routines.filter((r) => r.clientId === p.id).map((r) => r.id));
+    const dayIds = new Set(db.routineDays.filter((d) => routineIds.has(d.routineId)).map((d) => d.id));
+    const blockIds = new Set(db.routineBlocks.filter((b) => dayIds.has(b.dayId)).map((b) => b.id));
+    const sessionIds = new Set(db.workoutSessions.filter((s) => s.clientId === p.id).map((s) => s.id));
+    db.routineItems = db.routineItems.filter((i) => !blockIds.has(i.blockId));
+    db.routineBlocks = db.routineBlocks.filter((b) => !dayIds.has(b.dayId));
+    db.routineDays = db.routineDays.filter((d) => !routineIds.has(d.routineId));
+    db.routines = db.routines.filter((r) => !routineIds.has(r.id));
+    db.itemChecks = db.itemChecks.filter((c) => !sessionIds.has(c.sessionId));
+    db.workoutSessions = db.workoutSessions.filter((s) => !sessionIds.has(s.id));
+    db.exerciseViews = db.exerciseViews.filter((v) => v.clientId !== p.id);
+    db.coachNotes = db.coachNotes.filter((n) => n.clientId !== p.id);
+    db.accessRequests = db.accessRequests.filter((r) => normalizeEmail(r.email) !== normalizeEmail(p.email) && r.linkedProfileId !== p.id);
+  } else {
+    const clients = db.profiles.filter((c) => c.role === "client" && c.coachId === p.id);
+    if (clients.length) {
+      const target = activeStaff(db, reassignTo);
+      if (!target || target.id === p.id) throw new Error(`Primero reasigná sus ${clients.length} clientes a otro profe.`);
+      for (const c of clients) c.coachId = target.id;
+    }
+    for (const e of db.exercises) if (e.createdBy === p.id) e.createdBy = adminId;
+    for (const r of db.routines) {
+      if (r.createdBy === p.id) r.createdBy = r.isTemplate || !r.clientId ? adminId : null;
+      if (r.updatedBy === p.id) r.updatedBy = null;
+    }
+    for (const n of db.coachNotes) if (n.authorId === p.id) n.authorId = null;
+    for (const r of db.accessRequests) {
+      if (r.requestedCoachId === p.id) r.requestedCoachId = r.status === "pending" ? (reassignTo ?? null) : null;
+      if (r.reviewedBy === p.id) r.reviewedBy = null;
+    }
+  }
+  db.activations = db.activations.filter((a) => a.userId !== p.id);
+  db.inviteCodes = db.inviteCodes.filter((c) => c.profileId !== p.id);
+  db.profiles = db.profiles.filter((x) => x.id !== p.id);
+}
+
 function notFound(what: string): never {
   throw new Error(`${what} no encontrado`);
 }
@@ -116,7 +178,7 @@ export const mockDataSource: DataSource = {
       return delay(currentUser(), 0);
     },
     async signIn(email, password) {
-      const p = getDb().profiles.find((x) => x.email.toLowerCase() === email.trim().toLowerCase());
+      const p = byEmail(getDb(), email);
       await delay(null, 350);
       // La contraseña demo vale solo para cuentas ya activas; un invitado primero la crea en /activar.
       const okPassword = !!p && (storedPasswords()[p.id] === password || (password === DEMO_PASSWORD && !!p.activatedAt));
@@ -215,6 +277,10 @@ export const mockDataSource: DataSource = {
             if (p.role !== "client" || !canReassignClient(me)) throw new Error("Solo el admin reasigna clientes a otro profe.");
             if (!activeStaff(db, safe.coachId)) throw new Error("Elegí un profe activo.");
           }
+          if (safe.email !== undefined) {
+            safe.email = normalizeEmail(safe.email);
+            assertEmailFree(db, me, safe.email, p.id);
+          }
           Object.assign(p, safe);
           return p;
         }),
@@ -224,16 +290,15 @@ export const mockDataSource: DataSource = {
       const me = requireStaff();
       return delay(
         mutate((db) => {
-          if (db.profiles.some((p) => p.email.toLowerCase() === input.email.toLowerCase())) {
-            throw new Error("Ya existe un usuario con ese email.");
-          }
+          const email = normalizeEmail(input.email);
+          assertEmailFree(db, me, email);
           const coachId = coachForNewClient(me, input.coachId);
           if (!activeStaff(db, coachId)) throw new Error("Elegí un profe activo.");
           const p: Profile = {
             id: uuid(),
             role: "client",
             fullName: input.fullName,
-            email: input.email,
+            email,
             phone: input.phone ?? null,
             title: null,
             sport: input.sport ?? null,
@@ -252,6 +317,32 @@ export const mockDataSource: DataSource = {
           return p;
         }),
       );
+    },
+    async setClientActive(id, active) {
+      const me = requireStaff();
+      return delay(
+        mutate((db) => {
+          const p = db.profiles.find((x) => x.id === id && x.role === "client");
+          // Admin o su profe (el resto, como si no existiera).
+          if (!p || !canSeeClient(me, p)) notFound("Cliente");
+          p.disabledAt = active ? null : (p.disabledAt ?? now());
+          return p;
+        }),
+      );
+    },
+    async remove(id, { confirmName, reassignTo = null }) {
+      const me = currentUser();
+      if (!canManageTeam(me)) throw new Error("Solo un admin puede eliminar usuarios.");
+      mutate((db) => {
+        const p = db.profiles.find((x) => x.id === id) ?? notFound("Usuario");
+        if (p.id === me!.id) throw new Error("No podés eliminarte a vos.");
+        if (!sameName(confirmName, p.fullName)) throw new Error(`Escribí «${p.fullName}» para confirmar.`);
+        purgeUser(db, p, me!.id, reassignTo);
+      });
+      const pwds = storedPasswords();
+      delete pwds[id];
+      window.localStorage.setItem(PASSWORDS_KEY, JSON.stringify(pwds));
+      return delay(undefined);
     },
   },
 
@@ -580,7 +671,7 @@ export const mockDataSource: DataSource = {
       const errors = validateAccessRequest(input);
       if (Object.keys(errors).length) return { ok: false, reason: "invalid", errors };
       const db = getDb();
-      const dup = duplicateReason(input.email, db.accessRequests, db.profiles.map((p) => p.email));
+      const dup = duplicateReason(input.email, db.accessRequests, db.profiles);
       if (dup) return { ok: false, reason: dup, message: MESSAGES[dup] };
       // En el navegador no hay IP: el límite del mock es por email.
       if (isRateLimited(db.accessRequests, input.email, null)) {
@@ -594,6 +685,7 @@ export const mockDataSource: DataSource = {
         reviewedBy: null,
         reviewedAt: null,
         rejectReason: null,
+        linkedProfileId: null,
       };
       mutate((d) => {
         d.accessRequests.push(req);
@@ -618,7 +710,17 @@ export const mockDataSource: DataSource = {
         const coachId = me.role === "admin" ? (opts.coachId ?? r.requestedCoachId ?? me.id) : me.id;
         if (!activeStaff(db, coachId)) throw new Error("Elegí un profe activo.");
         if (r.status !== "pending") throw new Error("Esta solicitud ya fue revisada.");
-        if (db.profiles.some((p) => p.email.toLowerCase() === r.email)) throw new Error("Ya existe una cuenta con ese email.");
+        const existing = byEmail(db, r.email);
+        if (existing) {
+          // Una persona = un email: no se crea otra cuenta. Se ofrece vincular la solicitud a la existente.
+          if (!opts.linkExisting) throw new DuplicateEmailError(existingUserFor(me, existing));
+          if (existing.role === "client" && !existing.coachId) existing.coachId = coachId;
+          r.status = "approved";
+          r.reviewedBy = me.id;
+          r.reviewedAt = now();
+          r.linkedProfileId = existing.id;
+          return { profile: canSeeProfile(me, existing) ? existing : null, token: null };
+        }
         const profile: Profile = {
           id: uuid(),
           role: "client",
@@ -647,7 +749,11 @@ export const mockDataSource: DataSource = {
         return { profile, token };
       });
       const origin = typeof window !== "undefined" ? window.location.origin : "";
-      return delay({ profile: result.profile, activationLink: `${origin}/activar?token=${result.token}` });
+      return delay({
+        profile: result.profile,
+        activationLink: result.token ? `${origin}/activar?token=${result.token}` : null,
+        linked: !result.token,
+      });
     },
     async reject(id, reason) {
       const me = currentUser();
@@ -681,10 +787,10 @@ export const mockDataSource: DataSource = {
       );
     },
     async invite(input) {
-      requireAdmin();
+      const me = requireAdmin();
       const result = mutate((db) => {
-        const email = input.email.trim().toLowerCase();
-        if (db.profiles.some((p) => p.email.toLowerCase() === email)) throw new Error("Ya existe un usuario con ese email.");
+        const email = normalizeEmail(input.email);
+        assertEmailFree(db, me, email);
         const p: Profile = {
           id: uuid(),
           role: input.role,
@@ -772,3 +878,21 @@ export const mockDataSource: DataSource = {
     },
   },
 };
+
+/**
+ * «Restablecer datos de demo» (solo admin): vuelve al seed y borra lo que quedó en este navegador
+ * (usuarios de prueba, contraseñas creadas y videos subidos).
+ */
+export async function resetDemoData(): Promise<void> {
+  if (currentUser()?.role !== "admin") throw new Error("Solo el admin restablece la demo.");
+  resetMockDb();
+  window.localStorage.removeItem(PASSWORDS_KEY);
+  await new Promise<void>((resolve) => {
+    try {
+      const req = indexedDB.deleteDatabase("reactive-mock-videos");
+      req.onsuccess = req.onerror = req.onblocked = () => resolve();
+    } catch {
+      resolve();
+    }
+  });
+}

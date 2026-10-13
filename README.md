@@ -96,7 +96,7 @@ npx supabase link --project-ref <ref-del-proyecto>
 npx supabase db push
 ```
 
-Opción B, a mano: en **SQL Editor**, pegá y ejecutá en orden los archivos de `supabase/migrations/` (`0001_schema.sql` → `0007_coach_scope.sql`).
+Opción B, a mano: en **SQL Editor**, pegá y ejecutá en orden los archivos de `supabase/migrations/` (`0001_schema.sql` → `0008_accounts.sql`).
 
 ### 3. Datos de demo (opcional, SOLO staging)
 
@@ -141,6 +141,22 @@ Desde ahí el admin suma el resto del equipo en **Equipo**, y los profes invitan
 - **Permisos (RLS, `0006_team.sql`)**: solo un admin crea, edita o desactiva profes y cambia roles; nadie cambia su propio rol; un usuario desactivado no lee ni escribe nada (políticas restrictivas en todas las tablas y en Storage, y además se le bloquea el login). Los códigos (`invite_codes`) solo los toca la service role.
 - **Modo mock:** la invitación muestra el link `/activar?token=…` o el código en pantalla. Demo: Caro P. (profe activa) y Lu M. (invitación pendiente).
 
+## Usuarios: un email por persona, desactivar y eliminar
+
+- **Email único:** se guarda normalizado (trim + minúsculas). En la base hay un índice único sobre `lower(email)` en `profiles` y otro para las solicitudes pendientes (`0008_accounts.sql`); el mock valida lo mismo. Crear un cliente o un profe con un email que ya existe da «Ya existe un usuario con ese email» + «Ver ficha» (si podés verla) y no crea el duplicado.
+- **Pedir acceso:**
+  - cuenta activa → «Ya tenés cuenta: ingresá o recuperá tu contraseña»;
+  - cuenta desactivada → «Tu cuenta está pausada, escribinos por WhatsApp»;
+  - solicitud pendiente → se avisa y no se duplica.
+  - Si al aprobar el email ya tiene cuenta, se ofrece **vincular** la solicitud a ese usuario (`linked_profile_id`) en vez de crear otro.
+- **Desactivar** (admin, o el profe con sus propios clientes): bloquea el login al instante, oculta a la persona de las listas (filtro «Desactivados» en Clientes y Equipo) y conserva el historial. Se vuelve con «Reactivar». El email sigue reservado.
+- **Eliminar definitivamente** (solo admin, escribiendo el nombre de la persona para confirmar):
+  - Cliente: borra la cuenta de auth, el perfil, las rutinas, las sesiones, las observaciones y las solicitudes.
+  - Profe: primero obliga a reasignar sus clientes. Sus ejercicios y plantillas pasan al admin.
+  - En los dos casos, el email queda libre. Server action: `app/actions/accounts.ts`.
+- **Sesión abierta:** si a alguien lo desactivan o lo eliminan mientras usa la app, queda deslogueado en su próxima acción: al pedir datos, al navegar o al volver a la pestaña (`onSessionRevoked`).
+- **Modo mock:** «Restablecer datos de demo» (menú del avatar, solo admin) vuelve al seed y borra usuarios, contraseñas y videos de prueba de ese navegador.
+
 ## Deploy (Vercel)
 
 - Proyecto `reactiveapp` en el team `reactive4`. Cada PR genera un preview; `main` es producción.
@@ -162,6 +178,7 @@ Cubren:
 - **Cambio de usuario:** cliente → logout → profe (el Panel carga sus datos, 3 veces seguidas) y profe → logout → cliente (ve su rutina y nada del profe).
 - **Equipo:** el admin invita a un profe → el profe activa su cuenta con el link → ve el Panel; activación con código; un profe no puede entrar a «Equipo».
 - **Dos profes:** Nico carga una rutina → la clienta ve «Cargada por Nico R.»; Jano (nuevo) no ve los clientes de Nico ni los abre por URL, pero usa ejercicios y plantillas; el admin ve a todos y filtra por profe.
+- **Usuarios:** email repetido (con otras mayúsculas) no se crea y ofrece «Ver ficha»; el profe desactiva a su cliente (no entra, se oculta, filtro «Desactivados», «Reactivar»); el admin elimina un cliente escribiendo su nombre y restablece la demo; eliminar a un profe con clientes exige reasignarlos.
 
 El reporte HTML queda en `playwright-report/` (`npx playwright show-report`).
 

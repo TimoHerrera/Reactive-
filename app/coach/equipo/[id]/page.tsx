@@ -1,10 +1,11 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { Loading } from "@/components/Loading";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { useSession } from "@/components/SessionProvider";
+import { DeleteForever } from "@/components/coach/AccountParts";
 import { StaffProfileForm } from "@/components/coach/StaffProfileForm";
 import { AccountStatusBadge, AdminOnly, BackHeader, ShareBox } from "@/components/coach/TeamParts";
 import { PillButton } from "@/components/ui";
@@ -41,6 +42,8 @@ function FichaProfe() {
   const [link, setLink] = useState<string | null>(null);
   const [code, setCode] = useState<{ code: string; expiresAt: string } | null>(null);
   const [reassignTo, setReassignTo] = useState("");
+  const [deleteReassign, setDeleteReassign] = useState("");
+  const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<Record<string, Msg>>({});
 
@@ -225,6 +228,38 @@ function FichaProfe() {
               </>
             )}
             <Feedback msg={msg.access ?? null} />
+            <DeleteForever
+              name={member.fullName}
+              what={`Se borra su cuenta y el email queda libre. Sus ejercicios y plantillas pasan a vos.${
+                member.clientCount > 0 ? ` Antes hay que pasar sus ${member.clientCount} clientes a otro profe.` : ""
+              }`}
+              disabled={member.clientCount > 0 && !deleteReassign}
+              onConfirm={async (typed) => {
+                await data.profiles.remove(member.id, { confirmName: typed, reassignTo: deleteReassign || null });
+                router.replace("/coach/equipo");
+              }}
+            >
+              {member.clientCount > 0 && (
+                <div>
+                  <label htmlFor="reassign-delete" className="label mb-2 block">
+                    Pasar sus {member.clientCount} clientes a
+                  </label>
+                  <select
+                    id="reassign-delete"
+                    value={deleteReassign}
+                    onChange={(e) => setDeleteReassign(e.target.value)}
+                    className="h-12 w-full rounded-md border border-line bg-bg px-3 text-body text-ink focus:border-accent"
+                  >
+                    <option value="">Elegí un profe…</option>
+                    {others.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.fullName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </DeleteForever>
           </Section>
         )}
       </div>

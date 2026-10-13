@@ -11,5 +11,5 @@ export async function inviteClient(input: NewClientInput): Promise<InviteResult>
   if (!input.fullName.trim() || !/^\S+@\S+\.\S+$/.test(input.email)) return { ok: false, error: "Revisá nombre y email." };
   const coachId = await activeStaffId(coachForNewClient(caller, input.coachId));
   if (!coachId) return { ok: false, error: "Elegí un profe activo." };
-  return invite({ ...input, role: "client", coachId }, caller.id);
+  return invite({ ...input, role: "client", coachId }, caller);
 }

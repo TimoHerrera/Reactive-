@@ -16,7 +16,16 @@ import {
   setStaffRole,
 } from "@/app/actions/team";
 import { approveAccessRequest, listPublicCoaches, submitAccessRequest } from "@/app/actions/access";
+import { deleteUser, setClientActive } from "@/app/actions/accounts";
+import { emitSessionRevoked } from "@/lib/auth/session-events";
+import { DuplicateEmailError, type ExistingUser } from "../errors";
 import type { DataSource } from "../repositories";
+
+/** Errores de server actions → excepción (con «Ver ficha» si el email ya existe). */
+function fail(res: { error: string; existing?: ExistingUser | null }): never {
+  if (res.existing !== undefined) throw new DuplicateEmailError(res.existing);
+  throw new Error(res.error);
+}
 import { accountStatus } from "../types";
 import type {
   AccessRequest,
@@ -149,6 +158,7 @@ const toAccessRequest = (r: Row): AccessRequest => ({
   reviewedBy: (r.reviewed_by as string) ?? null,
   reviewedAt: (r.reviewed_at as string) ?? null,
   rejectReason: (r.reject_reason as string) ?? null,
+  linkedProfileId: (r.linked_profile_id as string) ?? null,
 });
 
 const toSession = (r: Row): WorkoutSession => ({
@@ -204,11 +214,11 @@ async function sessionUser(): Promise<SessionUser | null> {
   const { data } = await sb().auth.getUser();
   if (!data.user) return null;
   const row = check(await sb().from("profiles").select("*").eq("id", data.user.id).maybeSingle());
-  if (!row) return null;
-  const p = toProfile(row as Row);
-  if (p.disabledAt) {
-    // Desactivado: pierde el acceso al instante.
+  const p = row ? toProfile(row as Row) : null;
+  if (!p || p.disabledAt) {
+    // Desactivado o eliminado con la sesión abierta: se corta en esta acción y la app va al login.
     await sb().auth.signOut();
+    emitSessionRevoked();
     return null;
   }
   return { id: p.id, role: p.role, fullName: p.fullName, email: p.email || data.user.email || "" };
@@ -275,8 +285,17 @@ export const supabaseDataSource: DataSource = {
     },
     async createClient(input) {
       const res = await inviteClient(input);
-      if (!res.ok) throw new Error(res.error);
+      if (!res.ok) fail(res);
       return res.profile;
+    },
+    async setClientActive(id, active) {
+      const res = await setClientActive(id, active);
+      if (!res.ok) fail(res);
+      return res.profile;
+    },
+    async remove(id, opts) {
+      const res = await deleteUser(id, opts);
+      if (!res.ok) fail(res);
     },
 
   },
@@ -475,8 +494,8 @@ export const supabaseDataSource: DataSource = {
     },
     async approve(id, opts) {
       const res = await approveAccessRequest(id, opts);
-      if (!res.ok) throw new Error(res.error);
-      return { profile: res.profile, activationLink: null };
+      if (!res.ok) fail(res);
+      return { profile: res.profile, activationLink: null, linked: res.linked };
     },
     async reject(id, reason) {
       const user = await sessionUser();
@@ -503,7 +522,7 @@ export const supabaseDataSource: DataSource = {
     },
     async invite(input) {
       const res = await inviteStaff(input);
-      if (!res.ok) throw new Error(res.error);
+      if (!res.ok) fail(res);
       return { profile: res.profile, activationLink: null };
     },
     async resend(profileId) {

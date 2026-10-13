@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { FormError } from "@/components/coach/AccountParts";
 import { AdminOnly, BackHeader, ShareBox } from "@/components/coach/TeamParts";
 import { Input, PillButton } from "@/components/ui";
 import { data } from "@/lib/data";
@@ -12,7 +13,7 @@ const EMPTY = { fullName: "", email: "", title: "", phone: "", role: "coach" as 
 /** «+ PROFE»: alta con invitación por mail → /activar → /coach. */
 function NuevoProfe() {
   const [v, setV] = useState(EMPTY);
-  const [errors, setErrors] = useState<{ fullName?: string; email?: string; form?: string }>({});
+  const [errors, setErrors] = useState<{ fullName?: string; email?: string; form?: unknown }>({});
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<{ profile: Profile; link: string | null } | null>(null);
   const set = (k: keyof typeof v, value: string) => setV((s) => ({ ...s, [k]: value }));
@@ -35,7 +36,7 @@ function NuevoProfe() {
       });
       setDone({ profile: res.profile, link: res.activationLink });
     } catch (err) {
-      setErrors({ form: (err as Error).message || "No pudimos invitarlo." });
+      setErrors({ form: err }); // email repetido → «Ver ficha»
     } finally {
       setBusy(false);
     }
@@ -104,11 +105,7 @@ function NuevoProfe() {
           </div>
           <p className="mt-2 text-small text-muted">El admin además gestiona el equipo.</p>
         </fieldset>
-        {errors.form && (
-          <p role="alert" className="text-small font-medium text-danger-ink">
-            ✕ {errors.form}
-          </p>
-        )}
+        <FormError error={errors.form} />
         <PillButton type="submit" block arrow disabled={busy}>
           {busy ? "Invitando…" : "Enviar invitación"}
         </PillButton>

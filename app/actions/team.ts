@@ -25,7 +25,7 @@ export async function inviteStaff(input: InviteStaffInput): Promise<InviteResult
   if (!input.fullName.trim() || !/^\S+@\S+\.\S+$/.test(input.email)) return { ok: false, error: "Revisá nombre y email." };
   return invite(
     { fullName: input.fullName.trim(), email: input.email, title: input.title ?? null, phone: input.phone ?? null, role: input.role },
-    me.id,
+    { id: me.id, role: "admin" },
     "/activar",
   );
 }

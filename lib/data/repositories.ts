@@ -38,8 +38,23 @@ export interface ProfilesRepo {
   listClients(): Promise<Profile[]>;
   listStaff(): Promise<Profile[]>;
   update(id: string, patch: ProfilePatch): Promise<Profile>;
-  /** Alta de cliente. En Supabase se hace por server action (invitación por email). */
+  /**
+   * Alta de cliente. En Supabase se hace por server action (invitación por email).
+   * Email repetido (sin importar mayúsculas) → `DuplicateEmailError` (lib/data/errors.ts).
+   */
   createClient(input: NewClientInput): Promise<Profile>;
+  /**
+   * Desactivar / reactivar un cliente (admin o su profe). Desactivado: no entra, se oculta de las listas,
+   * el historial queda y el email sigue reservado. Para profes: `team.deactivate`.
+   */
+  setClientActive(id: string, active: boolean): Promise<Profile>;
+  /**
+   * Eliminar definitivamente (solo admin, nunca a sí mismo). `confirmName` tiene que coincidir con el nombre.
+   * Cliente: borra cuenta, perfil, rutinas, sesiones, observaciones y solicitudes.
+   * Profe: exige `reassignTo` si tiene clientes; sus ejercicios y plantillas pasan al admin.
+   * Después el email queda libre.
+   */
+  remove(id: string, opts: { confirmName: string; reassignTo?: string | null }): Promise<void>;
 }
 
 export interface CoachNotesRepo {
@@ -110,8 +125,13 @@ export interface AccessRequestsRepo {
   /**
    * Profe/admin: crea el cliente y manda la invitación. En mock devuelve el link de activación.
    * El profe se lo queda; el admin puede elegir a qué profe asignarlo (`coachId`).
+   * Si el email ya tiene cuenta → `DuplicateEmailError`; con `linkExisting` la solicitud se vincula a esa
+   * cuenta (no se crea otra). `profile` es null si quien aprueba no puede ver esa cuenta.
    */
-  approve(id: string, opts?: { coachId?: string | null }): Promise<{ profile: Profile; activationLink: string | null }>;
+  approve(
+    id: string,
+    opts?: { coachId?: string | null; linkExisting?: boolean },
+  ): Promise<{ profile: Profile | null; activationLink: string | null; linked: boolean }>;
   reject(id: string, reason: string | null): Promise<AccessRequest>;
 }
 

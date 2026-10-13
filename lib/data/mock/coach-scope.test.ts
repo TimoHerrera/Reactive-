@@ -168,6 +168,6 @@ describe("asignación de clientes", () => {
     await as(ADMIN);
     const diego = (await data.accessRequests.list()).find((r) => r.requestedCoachId === null)!;
     const { profile } = await data.accessRequests.approve(diego.id, { coachId: IDS.caro });
-    expect(profile.coachId).toBe(IDS.caro);
+    expect(profile?.coachId).toBe(IDS.caro);
   });
 });

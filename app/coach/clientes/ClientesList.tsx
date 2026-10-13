@@ -13,16 +13,18 @@ import { data } from "@/lib/data";
 import { useQuery } from "@/lib/hooks";
 import type { ClientRoutineFilter } from "@/lib/routine/status";
 
-type Filter = "todos" | ClientRoutineFilter | "solicitudes";
+type Filter = "todos" | ClientRoutineFilter | "solicitudes" | "desactivados";
 const FILTERS: { key: Filter; label: string }[] = [
   { key: "todos", label: "Todos" },
   { key: "activa", label: "Activa" },
   { key: "por-vencer", label: "Por vencer" },
   { key: "sin-rutina", label: "Sin rutina" },
   { key: "solicitudes", label: "Solicitudes" },
+  { key: "desactivados", label: "Desactivados" },
 ];
 
 function Badge({ s }: { s: ClientSummary }) {
+  if (s.client.disabledAt) return <StatusBadge status="vencida">Desactivado</StatusBadge>;
   return <StatusBadge status={s.filter} />;
 }
 
@@ -45,22 +47,34 @@ export function ClientesList() {
   }, [], { live: false });
   const [handled, setHandled] = useState<string[]>([]);
 
-
-  const all = useMemo(
+  const scoped = useMemo(
     () => (q.data ?? []).filter((s) => !coachFilter.coachId || s.client.coachId === coachFilter.coachId),
     [q.data, coachFilter.coachId],
   );
+  // Desactivados: fuera de las listas (y de los contadores), salvo en su filtro.
+  const all = useMemo(() => scoped.filter((s) => !s.client.disabledAt), [scoped]);
+  const disabled = useMemo(() => scoped.filter((s) => s.client.disabledAt), [scoped]);
   const visibleRequests = (requests.data?.list ?? []).filter(
     (r) => !coachFilter.coachId || r.requestedCoachId === coachFilter.coachId,
   );
   const staffName = (id: string | null) => (id ? (requests.data?.staff.find((p) => p.id === id)?.fullName ?? null) : null);
   const counts = useMemo(() => {
-    const c: Record<Filter, number> = { todos: all.length, activa: 0, "por-vencer": 0, "sin-rutina": 0, solicitudes: 0 };
+    const c: Record<Filter, number> = {
+      todos: all.length,
+      activa: 0,
+      "por-vencer": 0,
+      "sin-rutina": 0,
+      solicitudes: 0,
+      desactivados: disabled.length,
+    };
     for (const s of all) c[s.filter]++;
     return c;
-  }, [all]);
+  }, [all, disabled]);
   counts.solicitudes = visibleRequests.filter((r) => !handled.includes(r.id)).length;
-  const list = all.filter((s) => (filter === "todos" || s.filter === filter) && matchesClient(s, query));
+  const list =
+    filter === "desactivados"
+      ? disabled.filter((s) => matchesClient(s, query))
+      : all.filter((s) => (filter === "todos" || s.filter === filter) && matchesClient(s, query));
 
   return (
     <div className="pb-6">

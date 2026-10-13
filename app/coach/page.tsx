@@ -57,7 +57,7 @@ export default function PanelPage() {
     const { exercises, checks, trees } = raw.data;
     const scope = clientIdsOfCoach(raw.data.clients, filter.coachId);
     const inScope = (clientId: string) => !scope || scope.has(clientId);
-    const clients = raw.data.clients.filter((c) => inScope(c.id));
+    const clients = raw.data.clients.filter((c) => inScope(c.id) && !c.disabledAt);
     const routines = raw.data.routines.filter((r) => routineMatchesCoach(r, scope, filter.coachId));
     const sessions = raw.data.sessions.filter((s) => inScope(s.clientId));
     const views = raw.data.views.filter((v) => inScope(v.clientId));

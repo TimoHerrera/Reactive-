@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import { FormError } from "@/components/coach/AccountParts";
 import { useCoachFilter } from "@/components/coach/CoachFilter";
 import { WizardFooter } from "@/components/coach/routine/WizardHeader";
 import { Input, PillButton } from "@/components/ui";
@@ -43,6 +44,7 @@ export function ClientForm({ client }: { client?: Profile }) {
   const coachId = v.coachId || (!editing ? (team.coachId ?? "") : "");
   const [errors, setErrors] = useState<Partial<Record<keyof Values | "form", string>>>({});
   const [busy, setBusy] = useState(false);
+  const [formError, setFormError] = useState<unknown>(null);
   const set = <K extends keyof Values>(k: K, val: Values[K]) => setV((x) => ({ ...x, [k]: val }));
   const back = editing ? `/coach/clientes/${client!.id}` : "/coach/clientes";
 
@@ -53,6 +55,7 @@ export function ClientForm({ client }: { client?: Profile }) {
     if (!/^\S+@\S+\.\S+$/.test(v.email.trim())) errs.email = "Revisá el email.";
     if (team.isAdmin && !coachId) errs.coachId = "Elegí el profe.";
     setErrors(errs);
+    setFormError(null);
     if (Object.keys(errs).length) return;
     setBusy(true);
     const payload = {
@@ -74,7 +77,8 @@ export function ClientForm({ client }: { client?: Profile }) {
         router.replace(`/coach/clientes/${created.id}?nuevo=1`);
       }
     } catch (err) {
-      setErrors({ form: (err as Error).message });
+      // Email repetido: «Ya existe un usuario con ese email» + «Ver ficha» (no se crea el duplicado).
+      setFormError(err);
       setBusy(false);
     }
   }
@@ -170,11 +174,7 @@ export function ClientForm({ client }: { client?: Profile }) {
             className="w-full rounded-md border border-line bg-surface px-4 py-3 text-body text-ink outline-none placeholder:text-muted/70 focus:border-accent"
           />
         </div>
-        {errors.form && (
-          <p role="alert" className="text-small font-medium text-danger-ink">
-            ✕ {errors.form}
-          </p>
-        )}
+        <FormError error={formError} />
       </div>
 
       <WizardFooter>

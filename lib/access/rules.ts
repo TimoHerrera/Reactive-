@@ -15,7 +15,7 @@ export type AccessRequestInput = {
 export type SubmitResult =
   | { ok: true; id: string }
   | { ok: false; reason: "invalid"; errors: Partial<Record<"fullName" | "email" | "phone" | "message", string>> }
-  | { ok: false; reason: "pending" | "account" | "rate-limited" | "spam" | "error"; message: string };
+  | { ok: false; reason: "pending" | "account" | "paused" | "rate-limited" | "spam" | "error"; message: string };
 
 export const RATE_LIMIT = { perEmail: 3, perEmailHours: 24, perIp: 5, perIpHours: 1 } as const;
 
@@ -45,14 +45,18 @@ export function cleanAccessRequest(input: AccessRequestInput) {
   };
 }
 
-/** ¿Ya hay una solicitud pendiente con ese email o ya existe la cuenta? */
+/** Cuenta existente (para chequear duplicados). Una persona = un email. */
+export type ExistingAccount = { email: string; disabledAt?: string | null };
+
+/** ¿Ya existe la cuenta (activa o pausada) o hay una solicitud pendiente con ese email? */
 export function duplicateReason(
   email: string,
   requests: Pick<AccessRequest, "email" | "status">[],
-  existingEmails: string[],
-): "pending" | "account" | null {
+  accounts: (ExistingAccount | string)[],
+): "pending" | "account" | "paused" | null {
   const e = normalizeEmail(email);
-  if (existingEmails.some((x) => normalizeEmail(x) === e)) return "account";
+  const acc = accounts.map((a) => (typeof a === "string" ? { email: a } : a)).find((a) => normalizeEmail(a.email) === e);
+  if (acc) return acc.disabledAt ? "paused" : "account";
   if (requests.some((r) => r.status === "pending" && normalizeEmail(r.email) === e)) return "pending";
   return null;
 }
@@ -78,6 +82,7 @@ export function isRateLimited(
 export const MESSAGES = {
   pending: "Ya tenemos una solicitud tuya pendiente con ese email. Tu profe la va a revisar pronto.",
   account: "Ya tenés cuenta: ingresá o recuperá tu contraseña.",
+  paused: "Tu cuenta está pausada, escribinos por WhatsApp.",
   "rate-limited": "Recibimos varios pedidos seguidos. Probá de nuevo más tarde o escribinos por WhatsApp.",
   spam: "No pudimos enviar el pedido.",
   error: "No pudimos enviar el pedido. Probá de nuevo en un rato.",
