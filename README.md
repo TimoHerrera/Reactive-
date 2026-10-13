@@ -26,6 +26,7 @@ npm run dev                  # http://localhost:3000
 | `npm run lint` | ESLint |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm test` | Tests unitarios (Vitest) |
+| `npm run test:e2e` | E2E con Playwright (build de producción en modo mock, 390 px) |
 | `npm run db:seed-sql` | Regenera `supabase/seed.sql` desde `lib/data/seed.ts` |
 
 ## Modo mock (sin Supabase)
@@ -118,6 +119,28 @@ Opción B, a mano: en **SQL Editor**, pegá y ejecutá en orden los archivos de 
 - La invitación lleva a `/activar` («Creá tu contraseña») y de ahí a Hoy.
 - **Modo mock:** al aprobar, el profe ve el link `/activar?token=…` (simula el mail). La contraseña creada queda guardada en ese navegador.
 
+## Deploy (Vercel)
+
+- Proyecto `reactiveapp` en el team `reactive4`. Cada PR genera un preview; `main` es producción.
+- Producción: **https://reactiveapp-reactive4.vercel.app** (hoy en modo mock: sin variables de entorno usa los datos de demo).
+- Para pasar a Supabase: cargar en Vercel las variables de `.env.example` con `NEXT_PUBLIC_DATA_SOURCE=supabase` y seguir la sección «Supabase».
+- Dominio propio (opcional): Vercel → Settings → Domains.
+
+## Tests E2E (Playwright)
+
+```bash
+npx playwright install chromium   # la primera vez
+npm run test:e2e                   # build + next start en :3200, modo mock
+E2E_BASE_URL=https://<preview>.vercel.app npm run test:e2e   # contra un preview de Vercel
+```
+
+Cubren:
+- **Flujo clave:** el profe importa `docs/ejemplos/readaptacion_martina_f2.xlsx`, resuelve «RDL c/ mancuernas», «Copenhague» y «Salto al cajón unipodal», publica para Martina; ella ve la rutina, abre el video de «Sentadilla goblet» y vuelve al mismo día y a la misma posición de scroll.
+- **Pedir acceso:** aviso de cuenta existente, pedido nuevo, aprobación del profe, activación con el link, Hoy vacío y login con la contraseña creada.
+- **Cambio de usuario:** cliente → logout → profe (el Panel carga sus datos, 3 veces seguidas) y profe → logout → cliente (ve su rutina y nada del profe).
+
+El reporte HTML queda en `playwright-report/` (`npx playwright show-report`).
+
 ## Rutas útiles
 
 - `/`: splash · `/login` · `/recuperar` · `/nueva-contrasena` · `/solicitar-acceso` · `/activar`
@@ -134,4 +157,4 @@ Opción B, a mano: en **SQL Editor**, pegá y ejecutá en orden los archivos de 
 - [x] **F4**: carga manual de rutinas (3 pasos, plantillas, duplicar y editar) + lista de Rutinas
 - [x] **F5**: importación de Excel (plantilla, lectura, errores, matching con alias y vista previa)
 - [x] **F6**: Panel, Clientes (ficha, alta, edición), Profes, «Primera vez / pedir acceso» y pulido
-- [ ] F7: E2E con Playwright y deploy
+- [x] **F7**: E2E con Playwright (flujo clave, pedir acceso, cambio de usuario) y deploy en Vercel
