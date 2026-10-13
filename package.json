@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "db:seed-sql": "tsx scripts/generate-seed-sql.ts",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "create-admin": "tsx scripts/create-admin.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

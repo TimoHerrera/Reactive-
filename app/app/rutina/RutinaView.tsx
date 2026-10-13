@@ -1,5 +1,6 @@
 "use client";
 
+import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { EmptyRoutine } from "@/components/client/EmptyRoutine";
@@ -7,7 +8,7 @@ import { SyncToast } from "@/components/client/SyncToast";
 import { useClientRoutine } from "@/components/client/useClientRoutine";
 import { PickClientNotice, ViewAsBanner } from "@/components/client/ViewAsBanner";
 import { Loading } from "@/components/Loading";
-import { Avatar, DayChip, ExerciseCard, type ExerciseChip } from "@/components/ui";
+import { DayChip, ExerciseCard, type ExerciseChip } from "@/components/ui";
 import { data, hasVideo, type Exercise, type RoutineItem } from "@/lib/data";
 import { formatDM } from "@/lib/dates";
 import { useQuery } from "@/lib/hooks";
@@ -91,7 +92,7 @@ export function RutinaView() {
         <p className="label">Mi rutina</p>
         <h1 className="display mt-2 text-h1">{routine.name}</h1>
         <p className="mt-3 flex items-center gap-2 text-small text-muted">
-          {coach && <Avatar name={coach.fullName} size="xs" pro />}
+          {coach && <ProfileAvatar avatarPath={coach.avatarPath} name={coach.fullName} size="xs" pro />}
           <span>
             {coach && (
               <>

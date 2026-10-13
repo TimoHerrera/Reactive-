@@ -52,6 +52,21 @@ export interface Profile {
   coachId: string | null;
   clientSince: ISODate | null;
   createdAt: ISODateTime;
+  /** Bio corta (profes: la ve el cliente en «Tu profe → Ver perfil»). */
+  bio: string | null;
+  /** Foto (path en Storage). Sin foto se muestran las iniciales. */
+  avatarPath: string | null;
+  /** Cuándo creó su contraseña. null = invitación pendiente. */
+  activatedAt: ISODateTime | null;
+  /** Desactivado: pierde el acceso al instante; su historial queda. */
+  disabledAt: ISODateTime | null;
+}
+
+export type AccountStatus = "activo" | "pendiente" | "desactivado";
+
+export function accountStatus(p: Pick<Profile, "activatedAt" | "disabledAt">): AccountStatus {
+  if (p.disabledAt) return "desactivado";
+  return p.activatedAt ? "activo" : "pendiente";
 }
 
 export interface CoachNote {

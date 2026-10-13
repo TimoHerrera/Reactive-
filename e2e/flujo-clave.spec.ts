@@ -42,7 +42,8 @@ test("profe importa un Excel, publica y la clienta lo ve con su video", async ({
   // 4) Abre el video de «Sentadilla goblet» desde la rutina (scrolleando hasta la card)
   const link = page.getByRole("link", { name: /Sentadilla goblet/ });
   await link.scrollIntoViewIfNeeded();
-  await page.mouse.wheel(0, 120);
+  // scrollBy es sincrónico (mouse.wheel se aplica después y la medición quedaba corrida 120 px).
+  await page.evaluate(() => window.scrollBy(0, 120));
   const scrollBefore = await page.evaluate(() => Math.round(window.scrollY));
   expect(scrollBefore).toBeGreaterThan(0);
   await link.click();

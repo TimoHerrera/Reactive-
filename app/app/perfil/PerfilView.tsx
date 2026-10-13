@@ -1,5 +1,6 @@
 "use client";
 
+import { ProfileAvatar } from "@/components/ProfileAvatar";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useClientRoutine } from "@/components/client/useClientRoutine";
@@ -69,7 +70,7 @@ export function PerfilView() {
                   href="/app/profe"
                   className="inline-flex min-h-[44px] items-center gap-2 underline decoration-accent decoration-2 underline-offset-4"
                 >
-                  <Avatar name={coach.fullName} size="xs" pro />
+                  <ProfileAvatar avatarPath={coach.avatarPath} name={coach.fullName} size="xs" pro />
                   {coach.fullName}
                   {coach.title && ` · ${coach.title.split(" ")[0]}`}
                 </Link>

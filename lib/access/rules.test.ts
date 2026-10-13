@@ -57,7 +57,7 @@ describe("flujo en modo mock", () => {
 
   it("lista los profes activos para el selector", async () => {
     const coaches = await repo.listCoaches();
-    expect(coaches.map((c) => c.fullName)).toEqual(["Nico R."]);
+    expect(coaches.map((c) => c.fullName)).toEqual(["Caro P.", "Nico R."]);
   });
 
   it("pedido válido → ok; repetido → pendiente; cuenta existente → «Ya tenés cuenta»", async () => {

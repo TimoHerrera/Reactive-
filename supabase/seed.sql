@@ -28,6 +28,24 @@ values (gen_random_uuid(), '10000000-0000-4000-8000-000000000002', '10000000-000
 on conflict do nothing;
 insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
   raw_app_meta_data, raw_user_meta_data, created_at, updated_at, confirmation_token, email_change, email_change_token_new, recovery_token)
+values ('00000000-0000-0000-0000-000000000000', '10000000-0000-4000-8000-000000000003', 'authenticated', 'authenticated', 'caro@reactive.test',
+  extensions.crypt('reactive-demo', extensions.gen_salt('bf')), now(),
+  '{"provider":"email","providers":["email"]}', jsonb_build_object('full_name', 'Caro P.'), now(), now(), '', '', '', '')
+on conflict (id) do nothing;
+insert into auth.identities (id, user_id, provider_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
+values (gen_random_uuid(), '10000000-0000-4000-8000-000000000003', '10000000-0000-4000-8000-000000000003', jsonb_build_object('sub', '10000000-0000-4000-8000-000000000003', 'email', 'caro@reactive.test'), 'email', now(), now(), now())
+on conflict do nothing;
+insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+  raw_app_meta_data, raw_user_meta_data, created_at, updated_at, confirmation_token, email_change, email_change_token_new, recovery_token)
+values ('00000000-0000-0000-0000-000000000000', '10000000-0000-4000-8000-000000000004', 'authenticated', 'authenticated', 'lu@reactive.test',
+  '', null,
+  '{"provider":"email","providers":["email"]}', jsonb_build_object('full_name', 'Lu M.'), now(), now(), '', '', '', '')
+on conflict (id) do nothing;
+insert into auth.identities (id, user_id, provider_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
+values (gen_random_uuid(), '10000000-0000-4000-8000-000000000004', '10000000-0000-4000-8000-000000000004', jsonb_build_object('sub', '10000000-0000-4000-8000-000000000004', 'email', 'lu@reactive.test'), 'email', now(), now(), now())
+on conflict do nothing;
+insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+  raw_app_meta_data, raw_user_meta_data, created_at, updated_at, confirmation_token, email_change, email_change_token_new, recovery_token)
 values ('00000000-0000-0000-0000-000000000000', '10000000-0000-4000-8000-000000000010', 'authenticated', 'authenticated', 'martina@reactive.test',
   extensions.crypt('reactive-demo', extensions.gen_salt('bf')), now(),
   '{"provider":"email","providers":["email"]}', jsonb_build_object('full_name', 'Martina G.'), now(), now(), '', '', '', '')
@@ -100,35 +118,41 @@ values (gen_random_uuid(), '10000000-0000-4000-8000-000000000017', '10000000-000
 on conflict do nothing;
 
 -- ── Perfiles ────────────────────────────────────────────────────
-insert into public.profiles (id, role, full_name, email, phone, title, sport, case_type, case_detail, goal, coach_id, client_since, created_at)
-values ('10000000-0000-4000-8000-000000000001', 'admin', 'Admin Reactive', 'admin@reactive.test', null, 'Administración', null, null, null, null, null, null, now() - interval '5184000 seconds')
+insert into public.profiles (id, role, full_name, email, phone, title, sport, case_type, case_detail, goal, coach_id, client_since, created_at, bio, avatar_path, activated_at, disabled_at)
+values ('10000000-0000-4000-8000-000000000001', 'admin', 'Admin Reactive', 'admin@reactive.test', null, 'Administración', null, null, null, null, null, null, now() - interval '5184000 seconds', null, null, now() - interval '5184000 seconds', null)
 on conflict (id) do nothing;
-insert into public.profiles (id, role, full_name, email, phone, title, sport, case_type, case_detail, goal, coach_id, client_since, created_at)
-values ('10000000-0000-4000-8000-000000000002', 'coach', 'Nico R.', 'nico@reactive.test', '+54 9 11 5555-0102', 'Kinesiólogo deportivo', null, null, null, null, null, null, now() - interval '5184000 seconds')
+insert into public.profiles (id, role, full_name, email, phone, title, sport, case_type, case_detail, goal, coach_id, client_since, created_at, bio, avatar_path, activated_at, disabled_at)
+values ('10000000-0000-4000-8000-000000000002', 'coach', 'Nico R.', 'nico@reactive.test', '+54 9 11 5555-0102', 'Kinesiólogo deportivo', null, null, null, null, null, null, now() - interval '5184000 seconds', 'Kinesiólogo deportivo. Readaptación de lesiones de tobillo y rodilla y vuelta al deporte.', null, now() - interval '5184000 seconds', null)
 on conflict (id) do nothing;
-insert into public.profiles (id, role, full_name, email, phone, title, sport, case_type, case_detail, goal, coach_id, client_since, created_at)
-values ('10000000-0000-4000-8000-000000000010', 'client', 'Martina G.', 'martina@reactive.test', '+54 9 11 5555-0101', null, 'Fútbol 11', 'lesion_deportiva', 'Tobillo', 'Volver a jugar al fútbol post-esguince de tobillo', '10000000-0000-4000-8000-000000000002', current_date - 71, now() - interval '5184000 seconds')
+insert into public.profiles (id, role, full_name, email, phone, title, sport, case_type, case_detail, goal, coach_id, client_since, created_at, bio, avatar_path, activated_at, disabled_at)
+values ('10000000-0000-4000-8000-000000000003', 'coach', 'Caro P.', 'caro@reactive.test', '+54 9 11 5555-0103', 'Profesora de educación física', null, null, null, null, null, null, now() - interval '5184000 seconds', 'Entrenamiento de fuerza y prevención de lesiones en deportistas amateurs.', null, now() - interval '5184000 seconds', null)
 on conflict (id) do nothing;
-insert into public.profiles (id, role, full_name, email, phone, title, sport, case_type, case_detail, goal, coach_id, client_since, created_at)
-values ('10000000-0000-4000-8000-000000000011', 'client', 'Sofía R.', 'sofia@reactive.test', null, null, 'Handball', 'postquirurgico', 'LCA Fase 3', 'Volver a competir después de la cirugía de LCA', '10000000-0000-4000-8000-000000000002', current_date - 70, now() - interval '5184000 seconds')
+insert into public.profiles (id, role, full_name, email, phone, title, sport, case_type, case_detail, goal, coach_id, client_since, created_at, bio, avatar_path, activated_at, disabled_at)
+values ('10000000-0000-4000-8000-000000000004', 'coach', 'Lu M.', 'lu@reactive.test', null, 'Kinesióloga', null, null, null, null, null, null, now() - interval '86400 seconds', null, null, null, null)
 on conflict (id) do nothing;
-insert into public.profiles (id, role, full_name, email, phone, title, sport, case_type, case_detail, goal, coach_id, client_since, created_at)
-values ('10000000-0000-4000-8000-000000000012', 'client', 'Tomás L.', 'tomas@reactive.test', null, null, 'Rugby', 'rendimiento', 'Pretemporada rugby', 'Llegar al inicio del torneo en su mejor forma', '10000000-0000-4000-8000-000000000002', current_date - 70, now() - interval '5184000 seconds')
+insert into public.profiles (id, role, full_name, email, phone, title, sport, case_type, case_detail, goal, coach_id, client_since, created_at, bio, avatar_path, activated_at, disabled_at)
+values ('10000000-0000-4000-8000-000000000010', 'client', 'Martina G.', 'martina@reactive.test', '+54 9 11 5555-0101', null, 'Fútbol 11', 'lesion_deportiva', 'Tobillo', 'Volver a jugar al fútbol post-esguince de tobillo', '10000000-0000-4000-8000-000000000002', current_date - 71, now() - interval '5184000 seconds', null, null, now() - interval '5184000 seconds', null)
 on conflict (id) do nothing;
-insert into public.profiles (id, role, full_name, email, phone, title, sport, case_type, case_detail, goal, coach_id, client_since, created_at)
-values ('10000000-0000-4000-8000-000000000013', 'client', 'Joaquín M.', 'joaquin@reactive.test', null, null, 'Running', 'dolor_cronico', 'Lumbalgia', 'Correr sin dolor lumbar', '10000000-0000-4000-8000-000000000002', current_date - 70, now() - interval '5184000 seconds')
+insert into public.profiles (id, role, full_name, email, phone, title, sport, case_type, case_detail, goal, coach_id, client_since, created_at, bio, avatar_path, activated_at, disabled_at)
+values ('10000000-0000-4000-8000-000000000011', 'client', 'Sofía R.', 'sofia@reactive.test', null, null, 'Handball', 'postquirurgico', 'LCA Fase 3', 'Volver a competir después de la cirugía de LCA', '10000000-0000-4000-8000-000000000002', current_date - 70, now() - interval '5184000 seconds', null, null, now() - interval '5184000 seconds', null)
 on conflict (id) do nothing;
-insert into public.profiles (id, role, full_name, email, phone, title, sport, case_type, case_detail, goal, coach_id, client_since, created_at)
-values ('10000000-0000-4000-8000-000000000014', 'client', 'Valentina P.', 'valentina@reactive.test', null, null, 'Vóley', 'lesion_deportiva', 'Hombro', 'Recuperar el remate sin dolor', '10000000-0000-4000-8000-000000000002', current_date - 70, now() - interval '5184000 seconds')
+insert into public.profiles (id, role, full_name, email, phone, title, sport, case_type, case_detail, goal, coach_id, client_since, created_at, bio, avatar_path, activated_at, disabled_at)
+values ('10000000-0000-4000-8000-000000000012', 'client', 'Tomás L.', 'tomas@reactive.test', null, null, 'Rugby', 'rendimiento', 'Pretemporada rugby', 'Llegar al inicio del torneo en su mejor forma', '10000000-0000-4000-8000-000000000002', current_date - 70, now() - interval '5184000 seconds', null, null, now() - interval '5184000 seconds', null)
 on conflict (id) do nothing;
-insert into public.profiles (id, role, full_name, email, phone, title, sport, case_type, case_detail, goal, coach_id, client_since, created_at)
-values ('10000000-0000-4000-8000-000000000015', 'client', 'Lucas B.', 'lucas@reactive.test', null, null, 'Tenis', 'rendimiento', 'Evaluación pendiente', 'Mejorar la velocidad en cancha', '10000000-0000-4000-8000-000000000002', current_date - 6, now() - interval '5184000 seconds')
+insert into public.profiles (id, role, full_name, email, phone, title, sport, case_type, case_detail, goal, coach_id, client_since, created_at, bio, avatar_path, activated_at, disabled_at)
+values ('10000000-0000-4000-8000-000000000013', 'client', 'Joaquín M.', 'joaquin@reactive.test', null, null, 'Running', 'dolor_cronico', 'Lumbalgia', 'Correr sin dolor lumbar', '10000000-0000-4000-8000-000000000002', current_date - 70, now() - interval '5184000 seconds', null, null, now() - interval '5184000 seconds', null)
 on conflict (id) do nothing;
-insert into public.profiles (id, role, full_name, email, phone, title, sport, case_type, case_detail, goal, coach_id, client_since, created_at)
-values ('10000000-0000-4000-8000-000000000016', 'client', 'Camila F.', 'camila@reactive.test', null, null, 'Hockey', 'postquirurgico', 'Menisco', 'Volver a entrenar con el equipo', '10000000-0000-4000-8000-000000000002', current_date - 10, now() - interval '5184000 seconds')
+insert into public.profiles (id, role, full_name, email, phone, title, sport, case_type, case_detail, goal, coach_id, client_since, created_at, bio, avatar_path, activated_at, disabled_at)
+values ('10000000-0000-4000-8000-000000000014', 'client', 'Valentina P.', 'valentina@reactive.test', null, null, 'Vóley', 'lesion_deportiva', 'Hombro', 'Recuperar el remate sin dolor', '10000000-0000-4000-8000-000000000002', current_date - 70, now() - interval '5184000 seconds', null, null, now() - interval '5184000 seconds', null)
 on conflict (id) do nothing;
-insert into public.profiles (id, role, full_name, email, phone, title, sport, case_type, case_detail, goal, coach_id, client_since, created_at)
-values ('10000000-0000-4000-8000-000000000017', 'client', 'Federico A.', 'federico@reactive.test', null, null, 'Natación', 'dolor_cronico', 'Cervical', 'Nadar sin dolor de cuello', '10000000-0000-4000-8000-000000000002', current_date - 70, now() - interval '5184000 seconds')
+insert into public.profiles (id, role, full_name, email, phone, title, sport, case_type, case_detail, goal, coach_id, client_since, created_at, bio, avatar_path, activated_at, disabled_at)
+values ('10000000-0000-4000-8000-000000000015', 'client', 'Lucas B.', 'lucas@reactive.test', null, null, 'Tenis', 'rendimiento', 'Evaluación pendiente', 'Mejorar la velocidad en cancha', '10000000-0000-4000-8000-000000000002', current_date - 6, now() - interval '5184000 seconds', null, null, now() - interval '5184000 seconds', null)
+on conflict (id) do nothing;
+insert into public.profiles (id, role, full_name, email, phone, title, sport, case_type, case_detail, goal, coach_id, client_since, created_at, bio, avatar_path, activated_at, disabled_at)
+values ('10000000-0000-4000-8000-000000000016', 'client', 'Camila F.', 'camila@reactive.test', null, null, 'Hockey', 'postquirurgico', 'Menisco', 'Volver a entrenar con el equipo', '10000000-0000-4000-8000-000000000002', current_date - 10, now() - interval '5184000 seconds', null, null, now() - interval '5184000 seconds', null)
+on conflict (id) do nothing;
+insert into public.profiles (id, role, full_name, email, phone, title, sport, case_type, case_detail, goal, coach_id, client_since, created_at, bio, avatar_path, activated_at, disabled_at)
+values ('10000000-0000-4000-8000-000000000017', 'client', 'Federico A.', 'federico@reactive.test', null, null, 'Natación', 'dolor_cronico', 'Cervical', 'Nadar sin dolor de cuello', '10000000-0000-4000-8000-000000000002', current_date - 70, now() - interval '5184000 seconds', null, null, now() - interval '5184000 seconds', null)
 on conflict (id) do nothing;
 
 -- ── Observaciones ───────────────────────────────────────────────

@@ -20,6 +20,13 @@ function load(): Db {
       const seed = buildSeed();
       saved.accessRequests ??= seed.accessRequests;
       saved.activations ??= [];
+      saved.inviteCodes ??= [];
+      for (const p of saved.profiles) {
+        if (p.bio === undefined) p.bio = null;
+        if (p.avatarPath === undefined) p.avatarPath = null;
+        if (p.activatedAt === undefined) p.activatedAt = p.createdAt; // perfiles de versiones anteriores: ya activos
+        if (p.disabledAt === undefined) p.disabledAt = null;
+      }
       return saved;
     }
   } catch {

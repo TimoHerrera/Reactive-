@@ -86,7 +86,7 @@ npx supabase link --project-ref <ref-del-proyecto>
 npx supabase db push
 ```
 
-Opción B, a mano: en **SQL Editor**, pegá y ejecutá en orden los archivos de `supabase/migrations/` (`0001_schema.sql` → `0004_functions.sql`).
+Opción B, a mano: en **SQL Editor**, pegá y ejecutá en orden los archivos de `supabase/migrations/` (`0001_schema.sql` → `0006_team.sql`).
 
 ### 3. Datos de demo (opcional, SOLO staging)
 
@@ -94,14 +94,17 @@ Opción B, a mano: en **SQL Editor**, pegá y ejecutá en orden los archivos de 
 
 ### 4. Crear el primer admin
 
-1. **Authentication → Users → Add user → Create new user**: email y contraseña del admin, con «Auto Confirm User» tildado.
-2. En **SQL Editor**:
-   ```sql
-   insert into public.profiles (id, role, full_name, email)
-   select id, 'admin', 'Nombre Apellido', email
-   from auth.users where email = 'admin@tu-dominio.com';
-   ```
-3. Ingresá a la app con ese usuario. Desde ahí el admin suma profes, y los profes invitan clientes con «+ Cliente».
+No hay PIN fijo ni registro público de profes. El primer admin se crea desde tu compu con la service role (en `.env.local`, con `NEXT_PUBLIC_DATA_SOURCE=supabase`):
+
+```bash
+npm run create-admin -- admin@tu-dominio.com "Nombre Apellido"
+```
+
+- Si el email ya tiene usuario, lo **promueve** a admin (y lo reactiva si estaba desactivado).
+- Si no existe, le manda la **invitación por mail** (→ `/activar` → crea su contraseña → `/coach`) e imprime un **código de respaldo** de un solo uso (48 h) por si el mail no llega.
+- En modo mock no toca nada: la demo ya trae un admin (`admin@reactive.test`, botón «Admin» del acceso rápido).
+
+Desde ahí el admin suma el resto del equipo en **Equipo**, y los profes invitan clientes con «+ Cliente».
 
 ## Importar Excel
 
@@ -118,6 +121,15 @@ Opción B, a mano: en **SQL Editor**, pegá y ejecutá en orden los archivos de 
 - El profe lo ve en el Panel («Solicitudes de acceso (N)») y en Clientes → «Solicitudes»: **Aprobar** crea el cliente asignado al profe y manda la invitación; **Rechazar** con motivo opcional.
 - La invitación lleva a `/activar` («Creá tu contraseña») y de ahí a Hoy.
 - **Modo mock:** al aprobar, el profe ve el link `/activar?token=…` (simula el mail). La contraseña creada queda guardada en ese navegador.
+
+## Equipo (profes y admins)
+
+- **Equipo** (`/coach/equipo`, solo admin; se entra desde el Panel o el menú del avatar): lista de profes con estado (activo / invitación pendiente / desactivado) y cantidad de clientes.
+- **+ Profe**: nombre, email, título, WhatsApp y rol (profe o admin). Manda la invitación por mail → `/activar` → crea su contraseña → `/coach`.
+- En la ficha de cada profe: **reenviar invitación**, **generar código** (un solo uso, atado a ese email, vence en 48 h; se guarda hasheado y se muestra una sola vez; se canjea en `/activar` → «¿Tenés un código?»), editar datos, cambiar rol y **desactivar** (pierde el acceso al instante; si tiene clientes, hay que elegir a qué profe pasarlos; el historial queda) o reactivar.
+- **Mi perfil** (`/coach/perfil`): nombre, título, foto (o iniciales), WhatsApp y bio corta (280). Es lo que ve el cliente en «Tu profe → Ver perfil». Cada profe edita el suyo; el admin, el de todos.
+- **Permisos (RLS, `0006_team.sql`)**: solo un admin crea, edita o desactiva profes y cambia roles; nadie cambia su propio rol; un usuario desactivado no lee ni escribe nada (políticas restrictivas en todas las tablas y en Storage, y además se le bloquea el login). Los códigos (`invite_codes`) solo los toca la service role.
+- **Modo mock:** la invitación muestra el link `/activar?token=…` o el código en pantalla. Demo: Caro P. (profe activa) y Lu M. (invitación pendiente).
 
 ## Deploy (Vercel)
 
@@ -138,6 +150,7 @@ Cubren:
 - **Flujo clave:** el profe importa `docs/ejemplos/readaptacion_martina_f2.xlsx`, resuelve «RDL c/ mancuernas», «Copenhague» y «Salto al cajón unipodal», publica para Martina; ella ve la rutina, abre el video de «Sentadilla goblet» y vuelve al mismo día y a la misma posición de scroll.
 - **Pedir acceso:** aviso de cuenta existente, pedido nuevo, aprobación del profe, activación con el link, Hoy vacío y login con la contraseña creada.
 - **Cambio de usuario:** cliente → logout → profe (el Panel carga sus datos, 3 veces seguidas) y profe → logout → cliente (ve su rutina y nada del profe).
+- **Equipo:** el admin invita a un profe → el profe activa su cuenta con el link → ve el Panel; activación con código; un profe no puede entrar a «Equipo».
 
 El reporte HTML queda en `playwright-report/` (`npx playwright show-report`).
 
@@ -145,7 +158,7 @@ El reporte HTML queda en `playwright-report/` (`npx playwright show-report`).
 
 - `/`: splash · `/login` · `/recuperar` · `/nueva-contrasena` · `/solicitar-acceso` · `/activar`
 - `/app`: cliente (Hoy · Mi Rutina · Ejercicios · Perfil)
-- `/coach`: profe/admin (Panel · Clientes · Rutinas · Ejercicios)
+- `/coach`: profe/admin (Panel · Clientes · Rutinas · Ejercicios) · `/coach/perfil` · `/coach/equipo` (admin)
 - `/dev/ui`: catálogo de componentes del design system
 
 ## Estado por fase
@@ -157,4 +170,4 @@ El reporte HTML queda en `playwright-report/` (`npx playwright show-report`).
 - [x] **F4**: carga manual de rutinas (3 pasos, plantillas, duplicar y editar) + lista de Rutinas
 - [x] **F5**: importación de Excel (plantilla, lectura, errores, matching con alias y vista previa)
 - [x] **F6**: Panel, Clientes (ficha, alta, edición), Profes, «Primera vez / pedir acceso» y pulido
-- [x] **F7**: E2E con Playwright (flujo clave, pedir acceso, cambio de usuario) y deploy en Vercel
+- [x] **F7**: E2E con Playwright (flujo clave, pedir acceso, cambio de usuario, equipo), gestión del equipo (Equipo, perfil del profe, `create-admin`, RLS de desactivados) y deploy en Vercel

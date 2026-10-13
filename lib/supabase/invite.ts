@@ -63,6 +63,10 @@ export async function invite(
       coachId: saved.coach_id,
       clientSince: saved.client_since,
       createdAt: saved.created_at,
+      bio: saved.bio ?? null,
+      avatarPath: saved.avatar_path ?? null,
+      activatedAt: saved.activated_at ?? null,
+      disabledAt: saved.disabled_at ?? null,
     },
   };
 }

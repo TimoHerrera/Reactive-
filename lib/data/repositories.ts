@@ -1,5 +1,6 @@
 import type { AccessRequestInput, SubmitResult } from "@/lib/access/rules";
 import type {
+  AccountStatus,
   AccessRequest,
   AccessRequestStatus,
   CoachNote,
@@ -28,7 +29,8 @@ export type NewClientInput = {
   coachId?: string | null;
 };
 
-export type ProfilePatch = Partial<Omit<Profile, "id" | "createdAt" | "role">>;
+/** Datos editables de un perfil. Rol y estado (activación/desactivación) NO: van por `team`. */
+export type ProfilePatch = Partial<Omit<Profile, "id" | "createdAt" | "role" | "activatedAt" | "disabledAt">>;
 
 export interface ProfilesRepo {
   get(id: string): Promise<Profile | null>;
@@ -37,8 +39,6 @@ export interface ProfilesRepo {
   update(id: string, patch: ProfilePatch): Promise<Profile>;
   /** Alta de cliente. En Supabase se hace por server action (invitación por email). */
   createClient(input: NewClientInput): Promise<Profile>;
-  /** Alta de profe o admin. Solo admin (server action en Supabase). */
-  createStaff(input: { fullName: string; email: string; title?: string | null; role?: "coach" | "admin" }): Promise<Profile>;
 }
 
 export interface CoachNotesRepo {
@@ -108,6 +108,30 @@ export interface AccessRequestsRepo {
   reject(id: string, reason: string | null): Promise<AccessRequest>;
 }
 
+export type StaffMember = Profile & { status: AccountStatus; clientCount: number };
+
+export type InviteStaffInput = {
+  fullName: string;
+  email: string;
+  title?: string | null;
+  phone?: string | null;
+  role: "coach" | "admin";
+};
+
+/** Equipo (profes y admins). Todo es solo para admin; RLS y los server actions lo hacen cumplir. */
+export interface TeamRepo {
+  list(): Promise<StaffMember[]>;
+  /** Alta + invitación por mail (lleva a /activar). En mock devuelve el link. */
+  invite(input: InviteStaffInput): Promise<{ profile: Profile; activationLink: string | null }>;
+  resend(profileId: string): Promise<{ activationLink: string | null }>;
+  /** Código de un solo uso, atado al email, vence en 48 h. Se muestra una sola vez. */
+  createCode(profileId: string): Promise<{ code: string; expiresAt: string }>;
+  setRole(profileId: string, role: "coach" | "admin"): Promise<Profile>;
+  /** Pierde el acceso al instante. Si tiene clientes, hay que pasar a quién se reasignan. */
+  deactivate(profileId: string, reassignTo: string | null): Promise<void>;
+  reactivate(profileId: string): Promise<void>;
+}
+
 export type SignInResult = { ok: true; user: SessionUser } | { ok: false; error: string };
 
 export interface AuthRepo {
@@ -121,6 +145,8 @@ export interface AuthRepo {
    * Supabase: la sesión ya viene del link (/auth/callback). Mock: valida el token simulado.
    */
   activate(token: string | null): Promise<SessionUser | null>;
+  /** /activar con código (cuando el mail no llega): crea la contraseña y deja la sesión iniciada. */
+  redeemCode(email: string, code: string, password: string): Promise<{ ok: true; user: SessionUser } | { ok: false; error: string }>;
 }
 
 export interface DataSource {
@@ -134,4 +160,5 @@ export interface DataSource {
   views: ViewsRepo;
   videos: VideosRepo;
   accessRequests: AccessRequestsRepo;
+  team: TeamRepo;
 }

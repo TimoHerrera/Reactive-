@@ -6,9 +6,12 @@ import type { Role } from "@/lib/data/types";
 const DATA_SOURCE = process.env.NEXT_PUBLIC_DATA_SOURCE === "supabase" ? "supabase" : "mock";
 const AUTH_PAGES = ["/login", "/recuperar"];
 
-async function resolveRole(req: NextRequest, res: NextResponse): Promise<Role | null> {
+type Viewer = { role: Role | null; disabled?: boolean };
+
+async function resolveViewer(req: NextRequest, res: NextResponse): Promise<Viewer> {
   if (DATA_SOURCE === "mock") {
-    return decodeMockSession(req.cookies.get(MOCK_SESSION_COOKIE)?.value)?.role ?? null;
+    // En mock un desactivado no puede iniciar sesión, así que la cookie alcanza.
+    return { role: decodeMockSession(req.cookies.get(MOCK_SESSION_COOKIE)?.value)?.role ?? null };
   }
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -24,15 +27,20 @@ async function resolveRole(req: NextRequest, res: NextResponse): Promise<Role | 
     },
   );
   const { data } = await supabase.auth.getUser();
-  if (!data.user) return null;
-  const { data: row } = await supabase.from("profiles").select("role").eq("id", data.user.id).maybeSingle();
-  return (row?.role as Role) ?? null;
+  if (!data.user) return { role: null };
+  const { data: row } = await supabase.from("profiles").select("role, disabled_at").eq("id", data.user.id).maybeSingle();
+  // Desactivado: RLS ya no le deja leer su fila (row = null) o la ve con disabled_at. En ambos casos, afuera.
+  if (!row || row.disabled_at) {
+    await supabase.auth.signOut();
+    return { role: null, disabled: true };
+  }
+  return { role: row.role as Role };
 }
 
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next({ request: req });
   const { pathname, search } = req.nextUrl;
-  const role = await resolveRole(req, res);
+  const { role, disabled } = await resolveViewer(req, res);
 
   const redirect = (to: string) => {
     const r = NextResponse.redirect(new URL(to, req.url));
@@ -42,10 +50,12 @@ export async function middleware(req: NextRequest) {
 
   const needsAuth = pathname.startsWith("/app") || pathname.startsWith("/coach");
   if (needsAuth && !role) {
-    return redirect(`/login?next=${encodeURIComponent(pathname + search)}`);
+    return redirect(disabled ? "/login?error=desactivado" : `/login?next=${encodeURIComponent(pathname + search)}`);
   }
   // /coach es solo para staff. /app lo ve el cliente y también el staff («Ver como Martina»).
   if (pathname.startsWith("/coach") && role === "client") return redirect("/app");
+  // Equipo (alta de profes, roles, desactivar): solo admin.
+  if (pathname.startsWith("/coach/equipo") && role !== "admin") return redirect("/coach");
   if (role && AUTH_PAGES.includes(pathname)) return redirect(homeForRole(role));
 
   return res;

@@ -33,7 +33,13 @@ async function ipHash(): Promise<string | null> {
 /** Profes activos para el selector público (solo nombre y especialidad). */
 export async function listPublicCoaches(): Promise<PublicCoach[]> {
   const admin = getAdminSupabase();
-  const { data } = await admin.from("profiles").select("id, full_name, title").eq("role", "coach").order("full_name");
+  const { data } = await admin
+    .from("profiles")
+    .select("id, full_name, title")
+    .eq("role", "coach")
+    .is("disabled_at", null)
+    .not("activated_at", "is", null)
+    .order("full_name");
   return (data ?? []).map((r) => ({ id: r.id as string, fullName: r.full_name as string, title: (r.title as string) ?? null }));
 }
 

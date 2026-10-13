@@ -27,6 +27,8 @@ export function seedId(kind: number, n: number): string {
 export const IDS = {
   admin: seedId(1, 1),
   nico: seedId(1, 2),
+  caro: seedId(1, 3),
+  lu: seedId(1, 4),
   martina: seedId(1, 10),
   sofia: seedId(1, 11),
   tomas: seedId(1, 12),
@@ -51,6 +53,8 @@ export interface Db {
   accessRequests: (AccessRequest & { ipHash?: string | null })[];
   /** Solo mock: invitaciones simuladas (token → usuario). */
   activations: { token: string; userId: string; createdAt: string; usedAt: string | null }[];
+  /** Códigos de invitación (hasheados). */
+  inviteCodes: { id: string; codeHash: string; email: string; profileId: string; expiresAt: string; usedAt: string | null; createdBy: string | null; createdAt: string }[];
 }
 
 // ── Ejercicios ─────────────────────────────────────────────────────
@@ -502,6 +506,10 @@ export function buildSeed(today: string = todayISO(), now: Date = new Date()): D
     coachId: IDS.nico,
     clientSince: addDays(today, -70),
     createdAt: created,
+    bio: null,
+    avatarPath: null,
+    activatedAt: created,
+    disabledAt: null,
     ...p,
   });
 
@@ -520,6 +528,10 @@ export function buildSeed(today: string = todayISO(), now: Date = new Date()): D
       coachId: null,
       clientSince: null,
       createdAt: created,
+      bio: null,
+      avatarPath: null,
+      activatedAt: created,
+      disabledAt: null,
     },
     {
       id: IDS.nico,
@@ -535,6 +547,49 @@ export function buildSeed(today: string = todayISO(), now: Date = new Date()): D
       coachId: null,
       clientSince: null,
       createdAt: created,
+      bio: "Kinesiólogo deportivo. Readaptación de lesiones de tobillo y rodilla y vuelta al deporte.",
+      avatarPath: null,
+      activatedAt: created,
+      disabledAt: null,
+    },
+    {
+      id: IDS.caro,
+      role: "coach",
+      fullName: "Caro P.",
+      email: "caro@reactive.test",
+      phone: "+54 9 11 5555-0103",
+      title: "Profesora de educación física",
+      sport: null,
+      caseType: null,
+      caseDetail: null,
+      goal: null,
+      coachId: null,
+      clientSince: null,
+      createdAt: created,
+      bio: "Entrenamiento de fuerza y prevención de lesiones en deportistas amateurs.",
+      avatarPath: null,
+      activatedAt: created,
+      disabledAt: null,
+    },
+    {
+      // Invitación pendiente (todavía no creó su contraseña).
+      id: IDS.lu,
+      role: "coach",
+      fullName: "Lu M.",
+      email: "lu@reactive.test",
+      phone: null,
+      title: "Kinesióloga",
+      sport: null,
+      caseType: null,
+      caseDetail: null,
+      goal: null,
+      coachId: null,
+      clientSince: null,
+      createdAt: ts(-1),
+      bio: null,
+      avatarPath: null,
+      activatedAt: null,
+      disabledAt: null,
     },
     client(IDS.martina, "Martina G.", "martina@reactive.test", {
       phone: "+54 9 11 5555-0101",
@@ -751,5 +806,6 @@ export function buildSeed(today: string = todayISO(), now: Date = new Date()): D
     exerciseViews,
     accessRequests,
     activations: [],
+    inviteCodes: [],
   };
 }

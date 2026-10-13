@@ -123,6 +123,16 @@ export default function PanelPage() {
           <span aria-hidden="true" className="shrink-0 text-[1.25rem]">→</span>
         </Link>
 
+        {user?.role === "admin" && (
+          <Link
+            href="/coach/equipo"
+            className="flex min-h-[56px] items-center justify-between gap-3 rounded-lg border border-line bg-surface px-4 py-3 hover:bg-surface-2"
+          >
+            <span className="text-title-sm">Equipo · profes y accesos</span>
+            <span aria-hidden="true" className="shrink-0 text-[1.25rem]">→</span>
+          </Link>
+        )}
+
         <PillButton href="/coach/rutinas/nueva" arrow block>
           + Nueva rutina
         </PillButton>

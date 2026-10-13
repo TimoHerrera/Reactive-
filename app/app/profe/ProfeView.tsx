@@ -5,7 +5,8 @@ import type { ReactNode } from "react";
 import { useClientRoutine } from "@/components/client/useClientRoutine";
 import { PickClientNotice, ViewAsBanner } from "@/components/client/ViewAsBanner";
 import { Loading } from "@/components/Loading";
-import { Avatar, PillButton, Stripe } from "@/components/ui";
+import { ProfileAvatar } from "@/components/ProfileAvatar";
+import { PillButton, Stripe } from "@/components/ui";
 import { IconArrowLeft } from "@/components/ui/icons";
 import { formatDM } from "@/lib/dates";
 
@@ -57,7 +58,7 @@ export function ProfeView() {
       ) : (
         <>
           <header className="bg-grid flex items-center gap-4 px-gutter pb-8 pt-6">
-            <Avatar name={coach.fullName} size="lg" pro className="!h-20 !w-20 !text-[1.75rem]" />
+            <ProfileAvatar name={coach.fullName} avatarPath={coach.avatarPath} size="lg" pro className="!h-20 !w-20 !text-[1.75rem]" />
             <div className="min-w-0">
               <p className="label">Tu profe</p>
               <h1 className="display mt-1 text-h1">{coach.fullName}</h1>
@@ -68,6 +69,11 @@ export function ProfeView() {
           <Stripe className="whitespace-nowrap px-2 text-[min(5.3vw,1.375rem)]">¡Sin rutinas genéricas!</Stripe>
 
           <div className="space-y-3 px-gutter pt-6">
+            {coach.bio && (
+              <p className="rounded-lg border border-line bg-surface p-4 text-body text-title" aria-label="Bio del profe">
+                {coach.bio}
+              </p>
+            )}
             <section className="rounded-lg border border-line bg-surface px-4" aria-label="Datos del profe">
               {coach.title && <Row label="Especialidad">{coach.title}</Row>}
               <Row label="Email">
@@ -75,7 +81,7 @@ export function ProfeView() {
                   {coach.email}
                 </a>
               </Row>
-              {coach.phone && <Row label="Teléfono">{coach.phone}</Row>}
+              {coach.phone && <Row label="WhatsApp">{coach.phone}</Row>}
             </section>
 
             {routine && (
