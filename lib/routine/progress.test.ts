@@ -46,6 +46,8 @@ const tree: RoutineTree = {
   daysPerWeek: 3,
   clientMessage: null,
   createdBy: null,
+  updatedBy: null,
+  updatedAt: null,
   publishedAt: at("2026-09-28"),
   createdAt: at("2026-09-28"),
   days: [day("A", "A", 9), day("B", "B", 6, "Agilidad"), day("C", "C", 5)],

@@ -37,6 +37,7 @@ export const IDS = {
   lucas: seedId(1, 15),
   camila: seedId(1, 16),
   federico: seedId(1, 17),
+  bruno: seedId(1, 18),
 };
 
 export interface Db {
@@ -274,6 +275,8 @@ type RoutineSpec = {
   start?: number; // días desde hoy
   end?: number;
   message?: string;
+  /** Autor (por defecto Nico). */
+  by?: string;
   days: { label: string; title: string; blocks: { name: string; items: ItemSpec[] }[] }[];
 };
 
@@ -452,6 +455,22 @@ const ROUTINES: RoutineSpec[] = [
       [
         [["remo-banda", 3, "12"], ["flexores", 2, "45 s c/lado"]],
         [["plancha", 3, "30 s"], ["pallof", 3, "10 c/lado"]],
+      ],
+    ),
+  },
+  {
+    n: 10,
+    name: "Fuerza general",
+    client: IDS.bruno,
+    by: IDS.caro,
+    start: -5,
+    end: 23,
+    message: "Arrancamos tranqui: técnica primero, después sumamos carga.",
+    days: simpleDays(
+      [["A", "Tren inferior"], ["B", "Tren superior"]],
+      [
+        [["goblet", 3, "10", "12 kg"], ["hip-thrust", 3, "12", "30 kg"]],
+        [["flexiones", 3, "8"], ["remo-banda", 3, "12"]],
       ],
     ),
   },
@@ -643,6 +662,15 @@ export function buildSeed(today: string = todayISO(), now: Date = new Date()): D
       caseDetail: "Cervical",
       goal: "Nadar sin dolor de cuello",
     }),
+    // Cliente de Caro: Nico no la ve.
+    client(IDS.bruno, "Bruno S.", "bruno@reactive.test", {
+      coachId: IDS.caro,
+      sport: "Pádel",
+      caseType: "rendimiento",
+      caseDetail: "Fuerza general",
+      goal: "Ganar fuerza para jugar sin molestias",
+      clientSince: addDays(today, -20),
+    }),
   ];
 
   const coachNotes: CoachNote[] = [
@@ -693,7 +721,9 @@ export function buildSeed(today: string = todayISO(), now: Date = new Date()): D
       endsOn: r.end !== undefined ? addDays(today, r.end) : null,
       daysPerWeek: r.days.length,
       clientMessage: r.message ?? null,
-      createdBy: IDS.nico,
+      createdBy: r.by ?? IDS.nico,
+      updatedBy: null,
+      updatedAt: null,
       publishedAt: r.template ? null : ts((r.start ?? 0) - 1),
       createdAt: ts((r.start ?? -30) - 1),
     });

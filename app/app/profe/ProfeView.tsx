@@ -3,7 +3,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useClientRoutine } from "@/components/client/useClientRoutine";
-import { PickClientNotice, ViewAsBanner } from "@/components/client/ViewAsBanner";
+import { PickClientNotice, ViewAsBanner, ViewAsNoAccess } from "@/components/client/ViewAsBanner";
 import { Loading } from "@/components/Loading";
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { PillButton, Stripe } from "@/components/ui";
@@ -24,6 +24,7 @@ export function ProfeView() {
   const r = useClientRoutine();
 
   if (r.viewingAs && !r.clientId) return <PickClientNotice />;
+  if (r.noAccess) return <ViewAsNoAccess />;
   if (r.loading) return <Loading />;
   const coach = r.data?.coach ?? null;
   const client = r.data?.client ?? null;

@@ -55,6 +55,16 @@ Con `NEXT_PUBLIC_DATA_SOURCE=mock` la app usa datos de demo guardados en el `loc
 - Lo que necesita la service role key (invitar clientes, sumar profes) está en server actions: `app/actions/clients.ts`.
 - `middleware.ts` protege `/app` (cliente; el staff también puede entrar para «Ver como») y `/coach` (solo profe/admin).
 
+## Quién ve qué
+
+Las reglas están en `lib/access/scope.ts` (las usa el mock) y en RLS (`0007_coach_scope.sql`), así la demo se comporta igual que producción.
+
+- **Profe**: ve y edita solo sus clientes (`coach_id` = él) y lo que cuelga de ellos: rutinas, sesiones, vistas y observaciones. También ve las solicitudes de acceso que lo eligieron. Panel, Clientes, Rutinas y «Ver como» se filtran igual. Si abre por URL un cliente o una rutina ajena, ve «No tenés acceso».
+- **Compartido**: la biblioteca de ejercicios y videos, y las plantillas. Cualquier profe las usa o las duplica; editarlas o borrarlas, solo su autor o el admin.
+- **Admin**: ve todo, con el filtro «Profe: Todos / Nico / …» en Panel, Clientes y Rutinas. Es el único que reasigna clientes (Editar datos → Profe) y el que recibe las solicitudes «Todavía no tengo» (al aprobar elige a qué profe asignarla).
+- **Alta de cliente**: queda asignado al profe que lo crea; el admin elige el profe.
+- **Autor**: `routines.created_by` es siempre el usuario logueado; lo fija la base con un trigger y en mock la capa de datos, nunca el formulario. Si la edita otra persona se guarda `updated_by` y la clienta ve «Cargada por X · editada por Y».
+
 ## Supabase
 
 ### 1. Crear el proyecto
@@ -86,7 +96,7 @@ npx supabase link --project-ref <ref-del-proyecto>
 npx supabase db push
 ```
 
-Opción B, a mano: en **SQL Editor**, pegá y ejecutá en orden los archivos de `supabase/migrations/` (`0001_schema.sql` → `0006_team.sql`).
+Opción B, a mano: en **SQL Editor**, pegá y ejecutá en orden los archivos de `supabase/migrations/` (`0001_schema.sql` → `0007_coach_scope.sql`).
 
 ### 3. Datos de demo (opcional, SOLO staging)
 
@@ -117,7 +127,7 @@ Desde ahí el admin suma el resto del equipo en **Equipo**, y los profes invitan
 ## Primera vez / pedir acceso
 
 - En el login, «¿Primera vez? Pedile tu acceso a tu profe» lleva a `/solicitar-acceso`: nombre, email, WhatsApp, profe, tipo de caso y mensaje.
-- El pedido queda en `access_requests` (status `pending`). El anónimo solo puede insertar; leen y revisan coach/admin. Anti-spam: honeypot, 3 pedidos por email por día y 5 por IP por hora (hash de IP, nunca en claro).
+- El pedido queda en `access_requests` (status `pending`). El anónimo solo puede insertar; la lee y la revisa el profe elegido (las «Todavía no tengo», el admin). Anti-spam: honeypot, 3 pedidos por email por día y 5 por IP por hora (hash de IP, nunca en claro).
 - El profe lo ve en el Panel («Solicitudes de acceso (N)») y en Clientes → «Solicitudes»: **Aprobar** crea el cliente asignado al profe y manda la invitación; **Rechazar** con motivo opcional.
 - La invitación lleva a `/activar` («Creá tu contraseña») y de ahí a Hoy.
 - **Modo mock:** al aprobar, el profe ve el link `/activar?token=…` (simula el mail). La contraseña creada queda guardada en ese navegador.
@@ -151,6 +161,7 @@ Cubren:
 - **Pedir acceso:** aviso de cuenta existente, pedido nuevo, aprobación del profe, activación con el link, Hoy vacío y login con la contraseña creada.
 - **Cambio de usuario:** cliente → logout → profe (el Panel carga sus datos, 3 veces seguidas) y profe → logout → cliente (ve su rutina y nada del profe).
 - **Equipo:** el admin invita a un profe → el profe activa su cuenta con el link → ve el Panel; activación con código; un profe no puede entrar a «Equipo».
+- **Dos profes:** Nico carga una rutina → la clienta ve «Cargada por Nico R.»; Jano (nuevo) no ve los clientes de Nico ni los abre por URL, pero usa ejercicios y plantillas; el admin ve a todos y filtra por profe.
 
 El reporte HTML queda en `playwright-report/` (`npx playwright show-report`).
 

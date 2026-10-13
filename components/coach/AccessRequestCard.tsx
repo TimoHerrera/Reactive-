@@ -14,12 +14,16 @@ type Done =
 export function AccessRequestCard({
   request: r,
   coachName,
+  assignable,
   onChanged,
 }: {
   request: AccessRequest;
   coachName: string | null;
+  /** Solo admin: profes a los que puede asignar el cliente nuevo. */
+  assignable?: Profile[];
   onChanged: () => void;
 }) {
+  const [assignTo, setAssignTo] = useState(r.requestedCoachId ?? "");
   const [mode, setMode] = useState<"idle" | "reject">("idle");
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
@@ -31,7 +35,7 @@ export function AccessRequestCard({
     setBusy(true);
     setError(null);
     try {
-      const res = await data.accessRequests.approve(r.id);
+      const res = await data.accessRequests.approve(r.id, assignable ? { coachId: assignTo || null } : undefined);
       setDone({ kind: "approved", profile: res.profile, link: res.activationLink });
       onChanged();
     } catch (e) {
@@ -115,10 +119,30 @@ export function AccessRequestCard({
         </div>
       </dl>
       {r.message && <p className="mt-3 rounded-md bg-surface-2 px-3 py-2 text-small text-title">«{r.message}»</p>}
+      {assignable && mode === "idle" && (
+        <div className="mt-3">
+          <label htmlFor={`asignar-${r.id}`} className="label mb-1 block">
+            Asignar a
+          </label>
+          <select
+            id={`asignar-${r.id}`}
+            value={assignTo}
+            onChange={(e) => setAssignTo(e.target.value)}
+            className="h-12 w-full rounded-md border border-line bg-bg px-3 text-body text-ink focus:border-accent"
+          >
+            <option value="">Elegí un profe…</option>
+            {assignable.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.fullName}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {mode === "idle" ? (
         <div className="mt-3 grid grid-cols-2 gap-2">
-          <button type="button" disabled={busy} onClick={() => void approve()} className="h-12 rounded-full bg-ink text-small font-bold text-bg disabled:opacity-50">
+          <button type="button" disabled={busy || (!!assignable && !assignTo)} onClick={() => void approve()} className="h-12 rounded-full bg-ink text-small font-bold text-bg disabled:opacity-50">
             {busy ? "Aprobando…" : "Aprobar e invitar"}
           </button>
           <button type="button" disabled={busy} onClick={() => setMode("reject")} className="h-12 rounded-full border border-line text-small font-bold hover:bg-surface-2">

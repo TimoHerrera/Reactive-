@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useState } from "react";
+import { NoAccess } from "@/components/coach/NoAccess";
 import { Loading } from "@/components/Loading";
 import { Avatar, PillButton, StatusBadge } from "@/components/ui";
 import { IconArrowLeft } from "@/components/ui/icons";
@@ -37,14 +38,7 @@ export function ClientDetail() {
   if (q.loading && !q.data) return <Loading />;
   const d = q.data;
   if (!d?.client) {
-    return (
-      <div className="px-gutter pt-16 text-center">
-        <p className="display text-h1">Cliente no encontrado</p>
-        <PillButton href="/coach/clientes" variant="inverse" className="mt-8">
-          Volver a Clientes
-        </PillButton>
-      </div>
-    );
+    return <NoAccess text="Este cliente no existe o lo atiende otro profe." href="/coach/clientes" label="Volver a Clientes" />;
   }
   const c = d.client;
   const summary = summarizeClient(c, d.routines);
@@ -85,6 +79,11 @@ export function ClientDetail() {
           <div className="min-w-0">
             <h1 className="display text-h1">{c.fullName}</h1>
             {since && <p className="mt-1 text-small text-muted">{since}</p>}
+            {c.coachId && (
+              <p className="mt-1 text-small text-muted" data-testid="client-coach">
+                Profe: <strong className="font-semibold text-ink">{authorName(c.coachId)}</strong>
+              </p>
+            )}
           </div>
         </div>
         <div className="mt-4 grid grid-cols-2 gap-2">

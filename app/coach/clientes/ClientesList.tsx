@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { AccessRequestCard } from "@/components/coach/AccessRequestCard";
+import { CoachFilterChips, useCoachFilter } from "@/components/coach/CoachFilter";
 import { InlineLoading } from "@/components/Loading";
 import { QueryError } from "@/components/QueryError";
 import { Avatar, FilterChip, Input, PillButton, StatusBadge } from "@/components/ui";
@@ -30,6 +31,7 @@ export function ClientesList() {
   const params = useSearchParams();
   const filter = (params.get("filtro") as Filter) || "todos";
   const [query, setQuery] = useState("");
+  const coachFilter = useCoachFilter();
 
   const q = useQuery(async () => {
     const [clients, routines] = await Promise.all([data.profiles.listClients(), data.routines.list()]);
@@ -42,15 +44,22 @@ export function ClientesList() {
     return { list, staff };
   }, [], { live: false });
   const [handled, setHandled] = useState<string[]>([]);
-  const pendingCount = (requests.data?.list ?? []).filter((r) => !handled.includes(r.id)).length;
 
-  const all = useMemo(() => q.data ?? [], [q.data]);
+
+  const all = useMemo(
+    () => (q.data ?? []).filter((s) => !coachFilter.coachId || s.client.coachId === coachFilter.coachId),
+    [q.data, coachFilter.coachId],
+  );
+  const visibleRequests = (requests.data?.list ?? []).filter(
+    (r) => !coachFilter.coachId || r.requestedCoachId === coachFilter.coachId,
+  );
+  const staffName = (id: string | null) => (id ? (requests.data?.staff.find((p) => p.id === id)?.fullName ?? null) : null);
   const counts = useMemo(() => {
     const c: Record<Filter, number> = { todos: all.length, activa: 0, "por-vencer": 0, "sin-rutina": 0, solicitudes: 0 };
     for (const s of all) c[s.filter]++;
     return c;
   }, [all]);
-  counts.solicitudes = pendingCount;
+  counts.solicitudes = visibleRequests.filter((r) => !handled.includes(r.id)).length;
   const list = all.filter((s) => (filter === "todos" || s.filter === filter) && matchesClient(s, query));
 
   return (
@@ -70,6 +79,7 @@ export function ClientesList() {
           onChange={(e) => setQuery(e.target.value)}
         />
       </div>
+      <CoachFilterChips filter={coachFilter} className="mt-4" />
       <div className="no-scrollbar mt-4 flex gap-2 overflow-x-auto px-gutter" role="group" aria-label="Filtrar por rutina">
         {FILTERS.map((f) => (
           <FilterChip
@@ -86,15 +96,16 @@ export function ClientesList() {
         {filter === "solicitudes" ? (
           requests.loading && !requests.data ? (
             <InlineLoading />
-          ) : (requests.data?.list.length ?? 0) === 0 ? (
+          ) : visibleRequests.length === 0 ? (
             <p className="mt-10 text-center text-muted">No hay solicitudes de acceso pendientes.</p>
           ) : (
             <ul className="mt-4 space-y-3">
-              {requests.data!.list.map((r) => (
+              {visibleRequests.map((r) => (
                 <AccessRequestCard
                   key={r.id}
                   request={r}
-                  coachName={r.requestedCoachId ? (requests.data!.staff.find((p) => p.id === r.requestedCoachId)?.fullName ?? "Profe") : null}
+                  coachName={r.requestedCoachId ? (staffName(r.requestedCoachId) ?? "Profe") : null}
+                  assignable={coachFilter.isAdmin ? coachFilter.coaches : undefined}
                   onChanged={() => {
                     setHandled((h) => [...h, r.id]);
                     void q.reload();
@@ -133,7 +144,10 @@ export function ClientesList() {
                   <Avatar name={s.client.fullName} size="md" />
                   <span className="min-w-0 flex-1">
                     <span className="block text-title-sm">{s.client.fullName}</span>
-                    <span className="block truncate text-small text-muted">{s.subtitle}</span>
+                    <span className="block truncate text-small text-muted">
+                      {coachFilter.isAdmin && !coachFilter.coachId && staffName(s.client.coachId) ? `${staffName(s.client.coachId)} · ` : ""}
+                      {s.subtitle}
+                    </span>
                   </span>
                   <Badge s={s} />
                 </Link>

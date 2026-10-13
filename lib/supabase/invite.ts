@@ -14,6 +14,13 @@ export async function callerRole(): Promise<{ id: string; role: Role } | null> {
   return row ? { id: row.id as string, role: row.role as Role } : null;
 }
 
+/** Devuelve el id si es un profe/admin activo (para asignarle clientes). */
+export async function activeStaffId(id: string | null): Promise<string | null> {
+  if (!id) return null;
+  const { data } = await getAdminSupabase().from("profiles").select("id, role, disabled_at").eq("id", id).maybeSingle();
+  return data && (data.role === "coach" || data.role === "admin") && !data.disabled_at ? (data.id as string) : null;
+}
+
 export const siteUrl = () => process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
 export async function invite(

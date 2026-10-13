@@ -6,7 +6,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { EmptyRoutine } from "@/components/client/EmptyRoutine";
 import { SyncToast } from "@/components/client/SyncToast";
 import { useClientRoutine } from "@/components/client/useClientRoutine";
-import { PickClientNotice, ViewAsBanner } from "@/components/client/ViewAsBanner";
+import { PickClientNotice, ViewAsBanner, ViewAsNoAccess } from "@/components/client/ViewAsBanner";
 import { Loading } from "@/components/Loading";
 import { DayChip, ExerciseCard, type ExerciseChip } from "@/components/ui";
 import { data, hasVideo, type Exercise, type RoutineItem } from "@/lib/data";
@@ -68,6 +68,7 @@ export function RutinaView() {
   }, [highlight]);
 
   if (r.viewingAs && !r.clientId) return <PickClientNotice />;
+  if (r.noAccess) return <ViewAsNoAccess />;
   if (r.loading || (!exercises.data && exercises.loading)) return <Loading />;
   if (!routine || !day) {
     return (
@@ -81,7 +82,7 @@ export function RutinaView() {
   const session = sessionForDay(r.data!.sessions, day.id);
   const { done, total } = dayProgress(day, r.data!.checks, session?.id ?? null);
   const isChecked = (itemId: string) => !!session && r.data!.checks.some((c) => c.sessionId === session.id && c.itemId === itemId);
-  const coach = r.data!.coach;
+  const { author, editor } = r.data!;
 
   let n = 0;
   return (
@@ -91,12 +92,19 @@ export function RutinaView() {
       <header className="bg-grid px-gutter pb-4 pt-10">
         <p className="label">Mi rutina</p>
         <h1 className="display mt-2 text-h1">{routine.name}</h1>
-        <p className="mt-3 flex items-center gap-2 text-small text-muted">
-          {coach && <ProfileAvatar avatarPath={coach.avatarPath} name={coach.fullName} size="xs" pro />}
+        <p className="mt-3 flex items-center gap-2 text-small text-muted" data-testid="routine-author">
+          {author && <ProfileAvatar avatarPath={author.avatarPath} name={author.fullName} size="xs" pro />}
           <span>
-            {coach && (
+            {author && (
               <>
-                Cargada por <strong className="font-semibold text-ink">{coach.fullName}</strong> ·{" "}
+                Cargada por <strong className="font-semibold text-ink">{author.fullName}</strong>
+                {editor && (
+                  <>
+                    {" "}
+                    · editada por <strong className="font-semibold text-ink">{editor.fullName}</strong>
+                  </>
+                )}{" "}
+                ·{" "}
               </>
             )}
             Vigente {formatDM(routine.startsOn)} → {formatDM(routine.endsOn)}

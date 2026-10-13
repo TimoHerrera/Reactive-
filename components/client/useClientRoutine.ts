@@ -13,6 +13,9 @@ export type ClientRoutineData = {
   client: Profile | null;
   coach: Profile | null;
   routine: RoutineTree | null;
+  /** Quién cargó y quién editó la rutina actual (perfiles de staff). */
+  author: Profile | null;
+  editor: Profile | null;
   routines: Routine[];
   sessions: WorkoutSession[];
   checks: ItemCheck[];
@@ -40,8 +43,13 @@ export function useClientRoutine() {
         ? data.sessions.list({ clientId, routineId: cur.id, since: new Date(`${addDays(startOfWeek(todayISO()), -1)}T00:00:00`).toISOString() })
         : Promise.resolve([] as WorkoutSession[]),
     ]);
-    const checks = await data.sessions.listChecks(sessions.map((s) => s.id));
-    return { client, coach, routine, routines, sessions, checks };
+    const staffProfile = (id: string | null | undefined) => (id ? (id === coach?.id ? Promise.resolve(coach) : data.profiles.get(id)) : Promise.resolve(null));
+    const [checks, author, editor] = await Promise.all([
+      data.sessions.listChecks(sessions.map((s) => s.id)),
+      staffProfile(routine?.createdBy),
+      staffProfile(routine?.updatedBy && routine.updatedBy !== routine.createdBy ? routine.updatedBy : null),
+    ]);
+    return { client, coach, routine, routines, sessions, checks, author, editor };
   }, [clientId], { live: false });
 
   const { setData } = query;
@@ -126,6 +134,8 @@ export function useClientRoutine() {
       data: query.data ?? null,
       clientId,
       viewingAs,
+      /** «Ver como» un cliente que no es de este profe (o no existe). */
+      noAccess: viewingAs && !!query.data && !query.data.client,
       readOnly: viewingAs,
       toggleItem,
       syncError,

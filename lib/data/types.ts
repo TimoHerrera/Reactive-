@@ -108,7 +108,11 @@ export interface Routine {
   daysPerWeek: number;
   /** Sale como «Nota del profe» en Hoy. */
   clientMessage: string | null;
+  /** Quién la cargó: siempre el usuario logueado al crearla (lo fija el servidor, no el formulario). */
   createdBy: string | null;
+  /** Última edición (otro profe o el admin): «Cargada por X · editada por Y». */
+  updatedBy: string | null;
+  updatedAt: ISODateTime | null;
   publishedAt: ISODateTime | null;
   createdAt: ISODateTime;
 }

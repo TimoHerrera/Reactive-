@@ -26,6 +26,7 @@ export type NewClientInput = {
   caseType?: Profile["caseType"];
   caseDetail?: string | null;
   goal?: string | null;
+  /** Solo lo usa el admin (elige el profe). Si lo crea un profe, queda asignado a él. */
   coachId?: string | null;
 };
 
@@ -59,7 +60,10 @@ export interface ExercisesRepo {
 }
 
 export interface RoutinesRepo {
-  /** Staff: todas. Cliente: solo las suyas publicadas (lo hace cumplir RLS en Supabase). */
+  /**
+   * Admin: todas. Profe: las de sus clientes, sus borradores y todas las plantillas.
+   * Cliente: solo las suyas publicadas. (RLS en Supabase, lib/access/scope.ts en mock.)
+   */
   list(): Promise<Routine[]>;
   listForClient(clientId: string): Promise<Routine[]>;
   getTree(id: string): Promise<RoutineTree | null>;
@@ -103,8 +107,11 @@ export interface AccessRequestsRepo {
   submit(input: AccessRequestInput): Promise<SubmitResult>;
   /** Staff: solicitudes (por defecto, pendientes). */
   list(status?: AccessRequestStatus): Promise<AccessRequest[]>;
-  /** Staff: crea el cliente, lo asigna al profe y manda la invitación. En mock devuelve el link de activación. */
-  approve(id: string): Promise<{ profile: Profile; activationLink: string | null }>;
+  /**
+   * Profe/admin: crea el cliente y manda la invitación. En mock devuelve el link de activación.
+   * El profe se lo queda; el admin puede elegir a qué profe asignarlo (`coachId`).
+   */
+  approve(id: string, opts?: { coachId?: string | null }): Promise<{ profile: Profile; activationLink: string | null }>;
   reject(id: string, reason: string | null): Promise<AccessRequest>;
 }
 

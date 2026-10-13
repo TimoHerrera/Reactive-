@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { expectCoachPanelLoaded, logoutCoach, quickLogin } from "./helpers";
+import { expectNewCoachPanel, logoutCoach, quickLogin } from "./helpers";
 
 const path = (url: string) => url.replace(/^https?:\/\/[^/]+/, "");
 
@@ -35,7 +35,7 @@ test("el admin invita a un profe y el profe activa su cuenta", async ({ page }) 
   await page.getByLabel("Contraseña", { exact: true }).fill("clave-juli-123");
   await page.getByLabel("Repetila").fill("clave-juli-123");
   await page.getByRole("button", { name: /Entrar al panel/ }).click();
-  await expectCoachPanelLoaded(page);
+  await expectNewCoachPanel(page);
 
   // Un profe no ve ni puede entrar a «Equipo».
   await expect(page.getByRole("link", { name: /Equipo · profes/ })).toHaveCount(0);
@@ -63,7 +63,7 @@ test("activación con código de invitación (cuando el mail no llega)", async (
   await page.getByLabel("Contraseña", { exact: true }).fill("clave-lu-1234");
   await page.getByLabel("Repetila").fill("clave-lu-1234");
   await page.getByRole("button", { name: /Activar y entrar/ }).click();
-  await expectCoachPanelLoaded(page);
+  await expectNewCoachPanel(page);
 });
 
 test("un profe no puede entrar a Equipo", async ({ page }) => {

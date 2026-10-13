@@ -21,6 +21,10 @@ function load(): Db {
       saved.accessRequests ??= seed.accessRequests;
       saved.activations ??= [];
       saved.inviteCodes ??= [];
+      for (const r of saved.routines) {
+        if (r.updatedBy === undefined) r.updatedBy = null;
+        if (r.updatedAt === undefined) r.updatedAt = null;
+      }
       for (const p of saved.profiles) {
         if (p.bio === undefined) p.bio = null;
         if (p.avatarPath === undefined) p.avatarPath = null;

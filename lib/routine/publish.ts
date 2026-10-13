@@ -16,7 +16,7 @@ export type PublishResult = { routineIds: { clientId: string; routineId: string 
  */
 export async function publishDraft(
   draft: RoutineDraft,
-  opts: { clientIds: string[]; saveAsTemplate: boolean; userId: string | null; today?: string },
+  opts: { clientIds: string[]; saveAsTemplate: boolean; today?: string },
 ): Promise<PublishResult> {
   const today = opts.today ?? todayISO();
   const now = new Date().toISOString();
@@ -25,7 +25,7 @@ export async function publishDraft(
   // Edición de una plantilla existente.
   if (draft.routineId && draft.isTemplate) {
     const saved = await data.routines.saveTree(
-      draftToTree(draft, { clientId: null, isTemplate: true, publishedAt: null, routineId: draft.routineId, keepIds: true, createdBy: opts.userId }),
+      draftToTree(draft, { clientId: null, isTemplate: true, publishedAt: null, routineId: draft.routineId, keepIds: true }),
     );
     return { routineIds: [], templateId: saved.id };
   }
@@ -44,7 +44,6 @@ export async function publishDraft(
           publishedAt: original?.publishedAt ?? now,
           routineId: draft.routineId,
           keepIds: true,
-          createdBy: original?.createdBy ?? opts.userId,
         }),
       );
       result.routineIds.push({ clientId: ownerId, routineId: saved.id });
@@ -63,14 +62,14 @@ export async function publishDraft(
       }
     }
     const saved = await data.routines.saveTree(
-      draftToTree(draft, { clientId, isTemplate: false, publishedAt: now, createdBy: opts.userId }),
+      draftToTree(draft, { clientId, isTemplate: false, publishedAt: now }),
     );
     result.routineIds.push({ clientId, routineId: saved.id });
   }
 
   if (opts.saveAsTemplate) {
     const saved = await data.routines.saveTree(
-      draftToTree(draft, { clientId: null, isTemplate: true, publishedAt: null, createdBy: opts.userId }),
+      draftToTree(draft, { clientId: null, isTemplate: true, publishedAt: null }),
     );
     result.templateId = saved.id;
   }

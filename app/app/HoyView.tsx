@@ -4,7 +4,7 @@ import { ProfileAvatar } from "@/components/ProfileAvatar";
 import Link from "next/link";
 import { EmptyRoutine } from "@/components/client/EmptyRoutine";
 import { useClientRoutine } from "@/components/client/useClientRoutine";
-import { PickClientNotice, ViewAsBanner } from "@/components/client/ViewAsBanner";
+import { PickClientNotice, ViewAsBanner, ViewAsNoAccess } from "@/components/client/ViewAsBanner";
 import { WeekRing } from "@/components/client/WeekRing";
 import { Loading } from "@/components/Loading";
 import { BrushNote, LogoMark, PillButton } from "@/components/ui";
@@ -17,6 +17,7 @@ export function HoyView() {
   const r = useClientRoutine();
 
   if (r.viewingAs && !r.clientId) return <PickClientNotice />;
+  if (r.noAccess) return <ViewAsNoAccess />;
   if (r.loading) return <Loading />;
 
   const d = r.data;

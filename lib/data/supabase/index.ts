@@ -130,6 +130,8 @@ const toRoutine = (r: Row): Routine => ({
   daysPerWeek: (r.days_per_week as number) ?? 0,
   clientMessage: (r.client_message as string) ?? null,
   createdBy: (r.created_by as string) ?? null,
+  updatedBy: (r.updated_by as string) ?? null,
+  updatedAt: (r.updated_at as string) ?? null,
   publishedAt: (r.published_at as string) ?? null,
   createdAt: r.created_at as string,
 });
@@ -471,8 +473,8 @@ export const supabaseDataSource: DataSource = {
       ) as Row[];
       return rows.map(toAccessRequest);
     },
-    async approve(id) {
-      const res = await approveAccessRequest(id);
+    async approve(id, opts) {
+      const res = await approveAccessRequest(id, opts);
       if (!res.ok) throw new Error(res.error);
       return { profile: res.profile, activationLink: null };
     },

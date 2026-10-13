@@ -3,7 +3,17 @@ import { encodeMockSession, MOCK_SESSION_COOKIE } from "@/lib/auth/cookies";
 import { emitSessionChange } from "@/lib/auth/session-events";
 import type { DataSource } from "../repositories";
 import { DEMO_PASSWORD } from "../seed";
-import { accountStatus, isStaff, type AccessRequest, type Profile, type RoutineTree, type SessionUser } from "../types";
+import { accountStatus, isStaff, type AccessRequest, type Profile, type Routine, type RoutineTree, type SessionUser } from "../types";
+import {
+  canEditRoutine,
+  canReassignClient,
+  canSeeAccessRequest,
+  canSeeClient,
+  canSeeProfile,
+  canSeeRoutine,
+  coachForNewClient,
+  type Viewer,
+} from "@/lib/access/scope";
 import {
   canChangeRole,
   canDeactivate,
@@ -47,9 +57,6 @@ function currentUser(): SessionUser | null {
   return { id: p.id, role: p.role, fullName: p.fullName, email: p.email };
 }
 
-/** Sin sesión: como un cliente que no existe (no ve nada de nadie). */
-const ANON: SessionUser = { id: "__anon__", role: "client", fullName: "", email: "" };
-
 function requireStaff(): SessionUser {
   const me = currentUser();
   if (!me || !isStaff(me.role)) throw new Error("Solo profes.");
@@ -82,12 +89,20 @@ function setSessionCookie(value: string | null) {
     : `${base}; path=/; max-age=0`;
 }
 
-/** Imita RLS: clientes (y anónimos/desactivados) solo ven lo suyo. null = staff (ve todo). */
-function viewerIsClient(): SessionUser | null {
-  const u = currentUser();
-  if (!u) return ANON;
-  return isStaff(u.role) ? null : u;
+// ── Visibilidad (imita RLS de 0007_coach_scope.sql con las reglas de lib/access/scope.ts) ──
+type MockDb = ReturnType<typeof getDb>;
+const profileById = (db: MockDb, id: string | null | undefined) => (id ? db.profiles.find((p) => p.id === id) : undefined);
+const ownerOf = (db: MockDb, r: Routine) => profileById(db, r.clientId);
+const seesClient = (db: MockDb, v: Viewer, clientId: string) => canSeeClient(v, profileById(db, clientId));
+const seesRoutine = (db: MockDb, v: Viewer, r: Routine) => canSeeRoutine(v, r, ownerOf(db, r));
+function requireRoutineEdit(db: MockDb, v: Viewer, r: Routine) {
+  if (!canEditRoutine(v, r, ownerOf(db, r))) throw new Error("No tenés acceso a esta rutina.");
 }
+/** Profe o admin activo (para asignar clientes). */
+const activeStaff = (db: MockDb, id: string | null | undefined) => {
+  const p = profileById(db, id);
+  return p && isStaff(p.role) && !p.disabledAt ? p : null;
+};
 
 function notFound(what: string): never {
   throw new Error(`${what} no encontrado`);
@@ -170,15 +185,13 @@ export const mockDataSource: DataSource = {
 
   profiles: {
     async get(id) {
-      const me = viewerIsClient();
       const p = getDb().profiles.find((x) => x.id === id) ?? null;
-      // Cliente: su perfil y los de profes/admins. Anónimo: nada.
-      if (me && (me === ANON || (p && p.id !== me.id && !isStaff(p.role)))) return delay(null);
-      return delay(p);
+      // Staff: públicos para los logueados. Clientes: el propio, o los del profe (admin: todos).
+      return delay(canSeeProfile(currentUser(), p) ? p : null);
     },
     async listClients() {
-      const me = viewerIsClient();
-      return delay(getDb().profiles.filter((p) => p.role === "client" && (!me || p.id === me.id)));
+      const me = currentUser();
+      return delay(getDb().profiles.filter((p) => canSeeClient(me, p)));
     },
     async listStaff() {
       if (!currentUser()) return delay([]);
@@ -189,24 +202,33 @@ export const mockDataSource: DataSource = {
       return delay(
         mutate((db) => {
           const p = db.profiles.find((x) => x.id === id) ?? notFound("Perfil");
-          if (!canEditProfile(me, p)) throw new Error("No tenés permiso para editar este perfil.");
+          if (!canEditProfile(me, p) || (p.role === "client" && !canSeeClient(me, p))) {
+            throw new Error("No tenés permiso para editar este perfil.");
+          }
           // Rol y estado nunca se cambian por acá (aunque vengan en el objeto).
           const safe: Partial<Profile> = { ...patch };
           delete safe.role;
           delete safe.activatedAt;
           delete safe.disabledAt;
           delete safe.id;
+          if (safe.coachId !== undefined && safe.coachId !== p.coachId) {
+            if (p.role !== "client" || !canReassignClient(me)) throw new Error("Solo el admin reasigna clientes a otro profe.");
+            if (!activeStaff(db, safe.coachId)) throw new Error("Elegí un profe activo.");
+          }
           Object.assign(p, safe);
           return p;
         }),
       );
     },
     async createClient(input) {
+      const me = requireStaff();
       return delay(
         mutate((db) => {
           if (db.profiles.some((p) => p.email.toLowerCase() === input.email.toLowerCase())) {
             throw new Error("Ya existe un usuario con ese email.");
           }
+          const coachId = coachForNewClient(me, input.coachId);
+          if (!activeStaff(db, coachId)) throw new Error("Elegí un profe activo.");
           const p: Profile = {
             id: uuid(),
             role: "client",
@@ -218,7 +240,7 @@ export const mockDataSource: DataSource = {
             caseType: input.caseType ?? null,
             caseDetail: input.caseDetail ?? null,
             goal: input.goal ?? null,
-            coachId: input.coachId ?? currentUser()?.id ?? null,
+            coachId,
             clientSince: now().slice(0, 10),
             createdAt: now(),
             bio: null,
@@ -235,18 +257,18 @@ export const mockDataSource: DataSource = {
 
   coachNotes: {
     async listForClient(clientId) {
-      if (viewerIsClient()) return delay([]); // El cliente NUNCA ve las observaciones.
-      return delay(
-        getDb()
-          .coachNotes.filter((n) => n.clientId === clientId)
-          .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-      );
+      const me = currentUser();
+      // El cliente NUNCA ve las observaciones; el profe, solo las de sus clientes.
+      if (!me || !isStaff(me.role)) return delay([]);
+      const db = getDb();
+      if (!seesClient(db, me, clientId)) return delay([]);
+      return delay(db.coachNotes.filter((n) => n.clientId === clientId).sort((a, b) => b.createdAt.localeCompare(a.createdAt)));
     },
     async add(clientId, body) {
-      const author = currentUser();
-      if (!author || !isStaff(author.role)) throw new Error("Solo profes");
+      const author = requireStaff();
       return delay(
         mutate((db) => {
+          if (!seesClient(db, author, clientId)) throw new Error("No tenés acceso a este cliente.");
           const n = { id: uuid(), clientId, authorId: author.id, body, createdAt: now() };
           db.coachNotes.push(n);
           return n;
@@ -255,6 +277,7 @@ export const mockDataSource: DataSource = {
     },
   },
 
+  // Biblioteca compartida entre todos los profes.
   exercises: {
     async list() {
       if (!currentUser()) return delay([]);
@@ -265,14 +288,14 @@ export const mockDataSource: DataSource = {
       return delay(getDb().exercises.find((e) => e.id === id) ?? null);
     },
     async create(input) {
-      requireStaff();
+      const me = requireStaff();
       return delay(
         mutate((db) => {
           const key = normalizeText(input.name);
           if (db.exercises.some((e) => normalizeText(e.name) === key)) {
             throw new Error("Ya existe un ejercicio con ese nombre.");
           }
-          const e = { ...input, id: uuid(), createdBy: currentUser()?.id ?? null, createdAt: now(), updatedAt: now() };
+          const e = { ...input, id: uuid(), createdBy: me.id, createdAt: now(), updatedAt: now() };
           db.exercises.push(e);
           return e;
         }),
@@ -316,24 +339,23 @@ export const mockDataSource: DataSource = {
 
   routines: {
     async list() {
-      const me = viewerIsClient();
-      const all = getDb().routines;
-      return delay(me ? all.filter((r) => r.clientId === me.id && r.publishedAt) : all);
+      const me = currentUser();
+      const db = getDb();
+      return delay(db.routines.filter((r) => seesRoutine(db, me, r)));
     },
     async listForClient(clientId) {
-      const me = viewerIsClient();
-      if (me && me.id !== clientId) return delay([]);
+      const me = currentUser();
+      const db = getDb();
       return delay(
-        getDb()
-          .routines.filter((r) => r.clientId === clientId && (!me || r.publishedAt))
+        db.routines
+          .filter((r) => r.clientId === clientId && seesRoutine(db, me, r))
           .sort((a, b) => (b.startsOn ?? "").localeCompare(a.startsOn ?? "")),
       );
     },
     async getTree(id) {
       const db = getDb();
       const r = db.routines.find((x) => x.id === id);
-      const me = viewerIsClient();
-      if (!r || (me && (r.clientId !== me.id || !r.publishedAt))) return delay(null);
+      if (!r || !seesRoutine(db, currentUser(), r)) return delay(null);
       const tree: RoutineTree = {
         ...r,
         days: db.routineDays
@@ -353,12 +375,26 @@ export const mockDataSource: DataSource = {
       return delay(tree);
     },
     async saveTree(tree) {
-      requireStaff();
+      const me = requireStaff();
       return delay(
         mutate((db) => {
           const { days, ...routine } = tree;
           const id = routine.id || uuid();
           const existing = db.routines.find((r) => r.id === id);
+          // Autor: SIEMPRE el usuario logueado al crearla (se ignora lo que venga del formulario).
+          // Al editarla se conserva el autor y se registra quién la editó.
+          const saved: Routine = {
+            ...routine,
+            id,
+            daysPerWeek: days.length || routine.daysPerWeek,
+            createdBy: existing ? existing.createdBy : me.id,
+            updatedBy: existing ? me.id : null,
+            updatedAt: existing ? now() : null,
+            createdAt: existing?.createdAt ?? now(),
+          };
+          if (existing) requireRoutineEdit(db, me, existing);
+          requireRoutineEdit(db, me, saved);
+
           // Reemplaza días/bloques/ítems (las sesiones viejas apuntan a días que ya no existen: es esperable).
           const oldDays = db.routineDays.filter((d) => d.routineId === id).map((d) => d.id);
           const oldBlocks = db.routineBlocks.filter((b) => oldDays.includes(b.dayId)).map((b) => b.id);
@@ -366,13 +402,6 @@ export const mockDataSource: DataSource = {
           db.routineBlocks = db.routineBlocks.filter((b) => !oldDays.includes(b.dayId));
           db.routineDays = db.routineDays.filter((d) => d.routineId !== id);
 
-          const saved = {
-            ...routine,
-            id,
-            daysPerWeek: days.length || routine.daysPerWeek,
-            createdBy: routine.createdBy ?? currentUser()?.id ?? null,
-            createdAt: existing?.createdAt ?? now(),
-          };
           if (existing) Object.assign(existing, saved);
           else db.routines.push(saved);
 
@@ -407,45 +436,51 @@ export const mockDataSource: DataSource = {
       );
     },
     async publish(id) {
-      requireStaff();
+      const me = requireStaff();
       return delay(
         mutate((db) => {
           const r = db.routines.find((x) => x.id === id) ?? notFound("Rutina");
+          requireRoutineEdit(db, me, r);
           r.publishedAt = now();
           return r;
         }),
       );
     },
     async update(id, patch) {
-      requireStaff();
+      const me = requireStaff();
       return delay(
         mutate((db) => {
           const r = db.routines.find((x) => x.id === id) ?? notFound("Rutina");
-          Object.assign(r, patch);
+          requireRoutineEdit(db, me, r);
+          Object.assign(r, patch, { updatedBy: me.id, updatedAt: now() });
           return r;
         }),
       );
     },
     async itemCounts() {
       const db = getDb();
+      const me = currentUser();
+      const visible = new Set(db.routines.filter((r) => seesRoutine(db, me, r)).map((r) => r.id));
       const dayToRoutine = new Map(db.routineDays.map((d) => [d.id, d.routineId]));
       const blockToRoutine = new Map(db.routineBlocks.map((b) => [b.id, dayToRoutine.get(b.dayId)]));
       const out: Record<string, number> = {};
       for (const it of db.routineItems) {
         const rid = blockToRoutine.get(it.blockId);
-        if (rid) out[rid] = (out[rid] ?? 0) + 1;
+        if (rid && visible.has(rid)) out[rid] = (out[rid] ?? 0) + 1;
       }
       return delay(out, 40);
     },
     async remove(id) {
-      requireStaff();
+      const me = requireStaff();
       mutate((db) => {
+        const r = db.routines.find((x) => x.id === id) ?? notFound("Rutina");
+        requireRoutineEdit(db, me, r);
         const days = db.routineDays.filter((d) => d.routineId === id).map((d) => d.id);
         const blocks = db.routineBlocks.filter((b) => days.includes(b.dayId)).map((b) => b.id);
         db.routineItems = db.routineItems.filter((i) => !blocks.includes(i.blockId));
         db.routineBlocks = db.routineBlocks.filter((b) => !days.includes(b.dayId));
         db.routineDays = db.routineDays.filter((d) => d.routineId !== id);
-        db.routines = db.routines.filter((r) => r.id !== id);
+        db.routines = db.routines.filter((x) => x.id !== id);
       });
       return delay(undefined);
     },
@@ -453,18 +488,21 @@ export const mockDataSource: DataSource = {
 
   sessions: {
     async list(filter = {}) {
-      const me = viewerIsClient();
+      const me = currentUser();
+      const db = getDb();
       return delay(
-        getDb().workoutSessions.filter(
+        db.workoutSessions.filter(
           (s) =>
-            (!me || s.clientId === me.id) &&
+            seesClient(db, me, s.clientId) &&
             (!filter.clientId || s.clientId === filter.clientId) &&
             (!filter.routineId || s.routineId === filter.routineId) &&
             (!filter.since || s.startedAt >= filter.since),
         ),
       );
     },
+    // El registro lo escribe solo el cliente (el «Ver como» del profe es de solo lectura).
     async start({ clientId, routineId, dayId }) {
+      if (currentUser()?.id !== clientId) throw new Error("Solo el cliente registra su entrenamiento.");
       return delay(
         mutate((db) => {
           const s = { id: uuid(), clientId, routineId, dayId, startedAt: now(), completedAt: null };
@@ -475,9 +513,10 @@ export const mockDataSource: DataSource = {
       );
     },
     async complete(sessionId, completed) {
+      const me = currentUser();
       return delay(
         mutate((db) => {
-          const s = db.workoutSessions.find((x) => x.id === sessionId) ?? notFound("Sesión");
+          const s = db.workoutSessions.find((x) => x.id === sessionId && x.clientId === me?.id) ?? notFound("Sesión");
           s.completedAt = completed ? (s.completedAt ?? now()) : null;
           return s;
         }),
@@ -485,10 +524,15 @@ export const mockDataSource: DataSource = {
       );
     },
     async listChecks(sessionIds) {
-      return delay(getDb().itemChecks.filter((c) => sessionIds.includes(c.sessionId)), 40);
+      const me = currentUser();
+      const db = getDb();
+      const visible = new Set(db.workoutSessions.filter((s) => sessionIds.includes(s.id) && seesClient(db, me, s.clientId)).map((s) => s.id));
+      return delay(db.itemChecks.filter((c) => visible.has(c.sessionId)), 40);
     },
     async setCheck(sessionId, itemId, checked) {
+      const me = currentUser();
       mutate((db) => {
+        if (!db.workoutSessions.some((s) => s.id === sessionId && s.clientId === me?.id)) notFound("Sesión");
         db.itemChecks = db.itemChecks.filter((c) => !(c.sessionId === sessionId && c.itemId === itemId));
         if (checked) db.itemChecks.push({ sessionId, itemId, checkedAt: now() });
       });
@@ -498,15 +542,22 @@ export const mockDataSource: DataSource = {
 
   views: {
     async record(clientId, exerciseId) {
+      // Solo cuenta lo que mira el propio cliente.
+      if (currentUser()?.id !== clientId) return delay(undefined, 0);
       mutate((db) => {
         db.exerciseViews.push({ clientId, exerciseId, viewedAt: now() });
       });
       return delay(undefined, 0);
     },
     async list(filter = {}) {
+      const me = currentUser();
+      const db = getDb();
       return delay(
-        getDb().exerciseViews.filter(
-          (v) => (!filter.clientId || v.clientId === filter.clientId) && (!filter.since || v.viewedAt >= filter.since),
+        db.exerciseViews.filter(
+          (v) =>
+            seesClient(db, me, v.clientId) &&
+            (!filter.clientId || v.clientId === filter.clientId) &&
+            (!filter.since || v.viewedAt >= filter.since),
         ),
       );
     },
@@ -554,15 +605,18 @@ export const mockDataSource: DataSource = {
       if (!me || !isStaff(me.role)) return delay([]);
       return delay(
         getDb()
-          .accessRequests.filter((r) => r.status === status)
+          .accessRequests.filter((r) => r.status === status && canSeeAccessRequest(me, r))
           .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
       );
     },
-    async approve(id) {
+    async approve(id, opts = {}) {
       const me = currentUser();
       if (!me || !isStaff(me.role)) throw new Error("Solo profes");
       const result = mutate((db) => {
-        const r = db.accessRequests.find((x) => x.id === id) ?? notFound("Solicitud");
+        const r = db.accessRequests.find((x) => x.id === id && canSeeAccessRequest(me, x)) ?? notFound("Solicitud");
+        // El profe se lo queda; el admin elige a quién (por defecto, el que eligió la persona).
+        const coachId = me.role === "admin" ? (opts.coachId ?? r.requestedCoachId ?? me.id) : me.id;
+        if (!activeStaff(db, coachId)) throw new Error("Elegí un profe activo.");
         if (r.status !== "pending") throw new Error("Esta solicitud ya fue revisada.");
         if (db.profiles.some((p) => p.email.toLowerCase() === r.email)) throw new Error("Ya existe una cuenta con ese email.");
         const profile: Profile = {
@@ -576,7 +630,7 @@ export const mockDataSource: DataSource = {
           caseType: r.caseType,
           caseDetail: null,
           goal: r.message,
-          coachId: r.requestedCoachId ?? me.id,
+          coachId,
           clientSince: now().slice(0, 10),
           createdAt: now(),
           bio: null,
@@ -600,7 +654,7 @@ export const mockDataSource: DataSource = {
       if (!me || !isStaff(me.role)) throw new Error("Solo profes");
       return delay(
         mutate((db) => {
-          const r = db.accessRequests.find((x) => x.id === id) ?? notFound("Solicitud");
+          const r = db.accessRequests.find((x) => x.id === id && canSeeAccessRequest(me, x)) ?? notFound("Solicitud");
           r.status = "rejected";
           r.reviewedBy = me.id;
           r.reviewedAt = now();

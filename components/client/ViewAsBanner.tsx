@@ -25,6 +25,23 @@ export function ViewAsBanner({ client }: { client: Profile | null }) {
   );
 }
 
+/** «Ver como» un cliente ajeno (por URL). */
+export function ViewAsNoAccess() {
+  return (
+    <div className="px-gutter pt-16 text-center" role="alert">
+      <p className="display text-h1">No tenés acceso</p>
+      <p className="mt-3 text-muted">Este cliente no existe o lo atiende otro profe.</p>
+      <Link
+        href="/coach/clientes"
+        onClick={() => clearViewAs()}
+        className="mt-8 inline-flex h-12 items-center rounded-full bg-ink px-6 font-semibold text-bg"
+      >
+        Ir a Clientes
+      </Link>
+    </div>
+  );
+}
+
 /** Profe en /app sin cliente elegido. */
 export function PickClientNotice() {
   return (

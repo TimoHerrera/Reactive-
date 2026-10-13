@@ -44,7 +44,7 @@ describe("admin invita a un profe", () => {
     expect(user).toMatchObject({ id: p.id, role: "coach" });
     await data.auth.updatePassword("contraseña-juli");
     expect(profile(p.id).activatedAt).not.toBeNull();
-    expect((await data.profiles.listClients()).length).toBe(8); // el staff ve el Panel (igual que en RLS)
+    expect((await data.profiles.listClients()).length).toBe(0); // profe nuevo: todavía sin clientes propios
 
     await data.auth.signOut();
     await login("juli@reactive.test", "contraseña-juli");

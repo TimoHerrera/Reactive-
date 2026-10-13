@@ -18,7 +18,7 @@ import {
   type SubmitResult,
 } from "@/lib/access/rules";
 import type { Profile, PublicCoach } from "@/lib/data/types";
-import { callerRole, invite } from "@/lib/supabase/invite";
+import { activeStaffId, callerRole, invite } from "@/lib/supabase/invite";
 import { getAdminSupabase, getServerSupabase } from "@/lib/supabase/server";
 
 async function ipHash(): Promise<string | null> {
@@ -89,13 +89,17 @@ export async function submitAccessRequest(input: AccessRequestInput): Promise<Su
 
 export async function approveAccessRequest(
   id: string,
+  opts: { coachId?: string | null } = {},
 ): Promise<{ ok: true; profile: Profile } | { ok: false; error: string }> {
   const caller = await callerRole();
   if (!caller || (caller.role !== "coach" && caller.role !== "admin")) return { ok: false, error: "No autorizado." };
-  const supabase = await getServerSupabase(); // RLS: solo staff lee/actualiza
+  const supabase = await getServerSupabase(); // RLS: el profe solo ve las que lo eligieron; el admin, todas
   const { data: r } = await supabase.from("access_requests").select("*").eq("id", id).maybeSingle();
   if (!r) return { ok: false, error: "No encontramos la solicitud." };
   if (r.status !== "pending") return { ok: false, error: "Esta solicitud ya fue revisada." };
+  // El profe se lo queda; el admin elige a quién (por defecto, el que eligió la persona).
+  const coachId = await activeStaffId(caller.role === "admin" ? (opts.coachId ?? r.requested_coach_id ?? caller.id) : caller.id);
+  if (!coachId) return { ok: false, error: "Elegí un profe activo." };
 
   const res = await invite(
     {
@@ -104,7 +108,7 @@ export async function approveAccessRequest(
       phone: r.phone,
       caseType: r.case_type,
       goal: r.message,
-      coachId: r.requested_coach_id ?? caller.id,
+      coachId,
       role: "client",
     },
     caller.id,

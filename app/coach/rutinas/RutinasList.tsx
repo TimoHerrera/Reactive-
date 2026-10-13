@@ -3,7 +3,10 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo } from "react";
+import { CoachFilterChips, useCoachFilter } from "@/components/coach/CoachFilter";
 import { InlineLoading } from "@/components/Loading";
+import { useSession } from "@/components/SessionProvider";
+import { authorLine, canEditRoutine, clientIdsOfCoach, routineMatchesCoach } from "@/lib/access/scope";
 import { Avatar, PillButton, StatusBadge } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import { data, type Profile, type Routine } from "@/lib/data";
@@ -53,7 +56,21 @@ const EditIcon = () => (
   </svg>
 );
 
-function RoutineCard({ r, status, count, client }: { r: Routine; status: RoutineStatus; count: number; client: Profile | undefined }) {
+function RoutineCard({
+  r,
+  status,
+  count,
+  client,
+  author,
+  canEdit,
+}: {
+  r: Routine;
+  status: RoutineStatus;
+  count: number;
+  client: Profile | undefined;
+  author: string | null;
+  canEdit: boolean;
+}) {
   const meta = [
     r.startsOn && r.endsOn ? `${formatDM(r.startsOn)} → ${formatDM(r.endsOn)}` : null,
     `${r.daysPerWeek} ${r.daysPerWeek === 1 ? "día" : "días"}`,
@@ -68,6 +85,7 @@ function RoutineCard({ r, status, count, client }: { r: Routine; status: Routine
         <Badge status={status} />
       </div>
       <p className="mt-1 text-small text-muted">{meta}</p>
+      {author && <p className="mt-0.5 text-caption text-muted">{author}</p>}
       <div className="mt-3 flex items-center justify-between gap-3 border-t border-line pt-3">
         {client ? (
           <span className="flex min-w-0 items-center gap-2 text-body text-title">
@@ -85,9 +103,11 @@ function RoutineCard({ r, status, count, client }: { r: Routine; status: Routine
           <IconButton href={`/coach/rutinas/${r.id}/duplicar`} label={`Duplicar ${r.name}`}>
             <DuplicateIcon />
           </IconButton>
-          <IconButton href={`/coach/rutinas/${r.id}/editar`} label={`Editar ${r.name}`}>
-            <EditIcon />
-          </IconButton>
+          {canEdit && (
+            <IconButton href={`/coach/rutinas/${r.id}/editar`} label={`Editar ${r.name}`}>
+              <EditIcon />
+            </IconButton>
+          )}
         </span>
       </div>
     </li>
@@ -98,14 +118,23 @@ export function RutinasList() {
   const router = useRouter();
   const params = useSearchParams();
   const tab = (params.get("tab") as Tab) || "activas";
+  const { user } = useSession();
+  const coachFilter = useCoachFilter();
   const q = useQuery(async () => {
-    const [routines, counts, clients] = await Promise.all([data.routines.list(), data.routines.itemCounts(), data.profiles.listClients()]);
-    return { routines, counts, clients };
+    const [routines, counts, clients, staff] = await Promise.all([
+      data.routines.list(),
+      data.routines.itemCounts(),
+      data.profiles.listClients(),
+      data.profiles.listStaff(),
+    ]);
+    return { routines, counts, clients, staff };
   }, []);
 
   const grouped = useMemo(() => {
     const g: Record<Tab, { r: Routine; status: RoutineStatus }[]> = { activas: [], plantillas: [], vencidas: [] };
+    const scope = clientIdsOfCoach(q.data?.clients ?? [], coachFilter.coachId);
     for (const r of q.data?.routines ?? []) {
+      if (!routineMatchesCoach(r, scope, coachFilter.coachId)) continue;
       const status = routineStatus(r);
       const t = tabOf(status);
       if (t) g[t].push({ r, status });
@@ -114,9 +143,10 @@ export function RutinasList() {
     g.vencidas.sort((a, b) => (b.r.endsOn ?? "").localeCompare(a.r.endsOn ?? ""));
     g.plantillas.sort((a, b) => a.r.name.localeCompare(b.r.name, "es"));
     return g;
-  }, [q.data]);
+  }, [q.data, coachFilter.coachId]);
 
   const clientById = useMemo(() => new Map((q.data?.clients ?? []).map((c) => [c.id, c])), [q.data]);
+  const nameOf = (id: string) => q.data?.staff.find((p) => p.id === id)?.fullName ?? null;
 
   return (
     <div className="pb-6">
@@ -127,6 +157,7 @@ export function RutinasList() {
         </PillButton>
       </header>
 
+      <CoachFilterChips filter={coachFilter} className="mb-4" />
       <div className="px-gutter">
         <div role="tablist" aria-label="Rutinas" className="grid grid-cols-3 gap-1 rounded-md border border-line bg-surface p-1">
           {TABS.map((t) => (
@@ -165,6 +196,8 @@ export function RutinasList() {
                 status={status}
                 count={q.data!.counts[r.id] ?? 0}
                 client={r.clientId ? clientById.get(r.clientId) : undefined}
+                author={authorLine(r.createdBy, r.updatedBy, nameOf)}
+                canEdit={canEditRoutine(user, r, r.clientId ? clientById.get(r.clientId) : null)}
               />
             ))}
           </ul>

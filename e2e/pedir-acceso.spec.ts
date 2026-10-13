@@ -28,7 +28,8 @@ test("una persona nueva pide acceso, el profe la aprueba y activa su cuenta", as
 
   // El profe la ve en el Panel y la aprueba
   await quickLogin(page, "Nico (profe)");
-  await expect(page.getByText(/Solicitudes de acceso \(3\)/)).toBeVisible();
+  // Paula (lo eligió) + la nueva. La de Diego («Todavía no tengo») la ve solo el admin.
+  await expect(page.getByText(/Solicitudes de acceso \(2\)/)).toBeVisible();
   await page.getByRole("link", { name: /Solicitudes de acceso/ }).click();
   const card = page.getByRole("listitem").filter({ hasText: "Juana Prueba" });
   await card.getByRole("button", { name: "Aprobar e invitar" }).click();

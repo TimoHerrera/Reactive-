@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import { useCoachFilter } from "@/components/coach/CoachFilter";
 import { WizardFooter } from "@/components/coach/routine/WizardHeader";
 import { Input, PillButton } from "@/components/ui";
 import { IconArrowLeft } from "@/components/ui/icons";
@@ -18,6 +19,7 @@ type Values = {
   caseType: CaseType | null;
   caseDetail: string;
   goal: string;
+  coachId: string;
 };
 
 const toValues = (p?: Profile): Values => ({
@@ -28,13 +30,17 @@ const toValues = (p?: Profile): Values => ({
   caseType: p?.caseType ?? null,
   caseDetail: p?.caseDetail ?? "",
   goal: p?.goal ?? "",
+  coachId: p?.coachId ?? "",
 });
 
 /** Alta («+ Cliente»: invitación por email en Supabase) y edición de datos del cliente. */
 export function ClientForm({ client }: { client?: Profile }) {
   const router = useRouter();
   const editing = !!client;
+  // Admin: elige el profe (alta) o lo reasigna (edición). El profe no: sus clientes quedan con él.
+  const team = useCoachFilter();
   const [v, setV] = useState<Values>(() => toValues(client));
+  const coachId = v.coachId || (!editing ? (team.coachId ?? "") : "");
   const [errors, setErrors] = useState<Partial<Record<keyof Values | "form", string>>>({});
   const [busy, setBusy] = useState(false);
   const set = <K extends keyof Values>(k: K, val: Values[K]) => setV((x) => ({ ...x, [k]: val }));
@@ -45,6 +51,7 @@ export function ClientForm({ client }: { client?: Profile }) {
     const errs: typeof errors = {};
     if (!v.fullName.trim()) errs.fullName = "Poné el nombre.";
     if (!/^\S+@\S+\.\S+$/.test(v.email.trim())) errs.email = "Revisá el email.";
+    if (team.isAdmin && !coachId) errs.coachId = "Elegí el profe.";
     setErrors(errs);
     if (Object.keys(errs).length) return;
     setBusy(true);
@@ -56,6 +63,7 @@ export function ClientForm({ client }: { client?: Profile }) {
       caseType: v.caseType,
       caseDetail: v.caseDetail.trim() || null,
       goal: v.goal.trim() || null,
+      ...(team.isAdmin ? { coachId } : {}),
     };
     try {
       if (editing) {
@@ -86,6 +94,34 @@ export function ClientForm({ client }: { client?: Profile }) {
       </header>
 
       <div className="space-y-5 px-gutter pb-32 pt-5">
+        {team.isAdmin && (
+          <div>
+            <label htmlFor="coach" className="label mb-2 block">
+              Profe
+            </label>
+            <select
+              id="coach"
+              value={coachId}
+              onChange={(e) => set("coachId", e.target.value)}
+              aria-invalid={errors.coachId ? true : undefined}
+              className={cn(
+                "h-12 w-full rounded-md border bg-surface px-3 text-body text-ink focus:border-accent",
+                errors.coachId ? "border-danger" : "border-line",
+              )}
+            >
+              <option value="">Elegí un profe…</option>
+              {team.coaches.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.fullName}
+                </option>
+              ))}
+            </select>
+            {errors.coachId && <p className="mt-2 text-small font-medium text-danger-ink">✕ {errors.coachId}</p>}
+            {editing && client?.coachId && coachId !== client.coachId && (
+              <p className="mt-2 text-small text-warning">Se lo vas a pasar a otro profe: deja de verlo quien lo tenía.</p>
+            )}
+          </div>
+        )}
         <Input label="Nombre y apellido" value={v.fullName} onChange={(e) => set("fullName", e.target.value)} error={errors.fullName} autoFocus={!editing} />
         <Input
           label="Email"
