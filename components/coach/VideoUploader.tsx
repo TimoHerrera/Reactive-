@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { CameraRecorder } from "@/components/coach/CameraRecorder";
 import { PillButton } from "@/components/ui";
 import { useVideoUrl } from "@/components/video/useVideoUrl";
 import { data } from "@/lib/data";
@@ -17,7 +18,7 @@ type Phase =
   | { kind: "error"; message: string };
 
 /**
- * Subir video (acción principal): galería o cámara del celular.
+ * Subir video (acción principal) o grabarlo con la cámara desde la página (PC y celular).
  * Valida tipo, tamaño y duración, genera la miniatura a 1 s y sube con progreso y cancelación.
  */
 export function VideoUploader({
@@ -33,6 +34,7 @@ export function VideoUploader({
   const cameraRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
+  const [recording, setRecording] = useState(false);
   const preview = useVideoUrl(value?.videoPath);
   const poster = useVideoUrl(value?.videoPosterPath);
 
@@ -86,9 +88,28 @@ export function VideoUploader({
 
   return (
     <div className="space-y-3">
-      {/* Inputs ocultos: galería (sin capture) y cámara (capture) */}
+      {/* Inputs ocultos: galería (sin capture) y app de cámara del celular (capture, plan B de la grabadora) */}
       <input ref={galleryRef} type="file" accept={ACCEPT_ATTR} className="sr-only" tabIndex={-1} aria-hidden="true" onChange={(e) => void handleFile(e.target.files?.[0])} />
       <input ref={cameraRef} type="file" accept="video/*" capture="environment" className="sr-only" tabIndex={-1} aria-hidden="true" onChange={(e) => void handleFile(e.target.files?.[0])} />
+
+      {/* Grabadora propia (PC y celular): pide el permiso de la cámara y graba en la página. */}
+      {recording && (
+        <CameraRecorder
+          onClose={() => setRecording(false)}
+          onDone={(file) => {
+            setRecording(false);
+            void handleFile(file);
+          }}
+          onNativeCamera={() => {
+            setRecording(false);
+            cameraRef.current?.click();
+          }}
+          onPickFile={() => {
+            setRecording(false);
+            galleryRef.current?.click();
+          }}
+        />
+      )}
 
       {value && !busy ? (
         <div className="flex gap-4 rounded-lg border border-line bg-surface p-3">
@@ -154,7 +175,7 @@ export function VideoUploader({
           </PillButton>
           <button
             type="button"
-            onClick={() => cameraRef.current?.click()}
+            onClick={() => setRecording(true)}
             className="flex h-11 w-full items-center justify-center rounded-full border border-line text-small font-semibold hover:bg-surface-2"
           >
             Grabar con la cámara

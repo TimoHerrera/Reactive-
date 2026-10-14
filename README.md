@@ -42,6 +42,7 @@ Con `NEXT_PUBLIC_DATA_SOURCE=mock` la app usa datos de demo guardados en el `loc
 ## Videos
 
 - El método principal es **subir el archivo desde la app** (galería o cámara). YouTube es un link opcional.
+- **Grabar con la cámara** (PC y celular, `components/coach/CameraRecorder.tsx`): «Habilitar cámara» pide el permiso del navegador (cámara y micrófono), muestra la imagen en vivo, graba hasta el máximo de segundos con cuenta, deja cambiar entre cámara frontal y trasera, revisar la toma y «Usar este video» (sigue el mismo camino que una subida). Si el permiso está bloqueado, explica cómo habilitarlo según el dispositivo (PC, Android, iPhone) y ofrece la app de cámara del celular o elegir un video ya grabado. Necesita https (en Vercel ya está) o localhost.
 - Se aceptan `.mp4`, `.mov` y `.webm`, hasta `NEXT_PUBLIC_MAX_VIDEO_MB` (50 por defecto) y `NEXT_PUBLIC_MAX_VIDEO_SECONDS` (60).
 - Antes de subir se valida el archivo y se genera la miniatura en el navegador (frame a 1 s).
 - En Supabase la subida es reanudable (TUS) al bucket privado `exercise-videos`, y se reproduce con URLs firmadas de 10 minutos.
@@ -177,6 +178,7 @@ Cubren:
 - **Pedir acceso:** aviso de cuenta existente, pedido nuevo, aprobación del profe, activación con el link, Hoy vacío y login con la contraseña creada.
 - **Cambio de usuario:** cliente → logout → profe (el Panel carga sus datos, 3 veces seguidas) y profe → logout → cliente (ve su rutina y nada del profe).
 - **Equipo:** el admin invita a un profe → el profe activa su cuenta con el link → ve el Panel; activación con código; un profe no puede entrar a «Equipo».
+- **Cámara** (`e2e/camara.spec.ts`): con el permiso dado graba, revisa y usa el video; sin permiso muestra «Habilitar cámara»; bloqueada explica cómo habilitarla. Usa el Chrome instalado (perfil temporal y cámara simulada), porque el Chromium liviano de Playwright no tiene cámara.
 - **Dos profes:** Nico carga una rutina → la clienta ve «Cargada por Nico R.»; Jano (nuevo) no ve los clientes de Nico ni los abre por URL, pero usa ejercicios y plantillas; el admin ve a todos y filtra por profe.
 - **Usuarios:** email repetido (con otras mayúsculas) no se crea y ofrece «Ver ficha»; el profe desactiva a su cliente (no entra, se oculta, filtro «Desactivados», «Reactivar»); el admin elimina un cliente escribiendo su nombre y restablece la demo; el profe elimina a su propio cliente y Caro no ve ni puede borrar a los de Nico; eliminar a un profe con clientes exige reasignarlos.
 
