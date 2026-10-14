@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildSeed } from "@/lib/data/seed";
-import { exerciseMeta, formatDuration, inRegion, searchExercises } from "./exercises";
+import { exerciseMeta, formatDuration, groupByRegion, inRegion, searchExercises } from "./exercises";
 
 const { exercises } = buildSeed("2026-10-11");
 const names = (q: string) => searchExercises(exercises, q).map((h) => h.exercise.name);
@@ -53,5 +53,32 @@ describe("helpers", () => {
     const goblet = exercises.find((e) => e.name === "Sentadilla goblet")!;
     expect(inRegion(goblet, "Piernas")).toBe(true);
     expect(inRegion(goblet, "Tren superior")).toBe(false);
+  });
+});
+
+describe("zonas (biblioteca del profe)", () => {
+  const it_ = (...m: string[]) => ({ exercise: { muscleGroups: m } });
+
+  it("secciones en el orden de los chips, sin vacías; los que no tienen zona van a «Otros»", () => {
+    const groups = groupByRegion([it_("Core"), it_("Cuádriceps"), it_("Gemelos"), it_()]);
+    expect(groups.map((g) => [g.region, g.items.length])).toEqual([
+      ["Piernas", 2],
+      ["Core", 1],
+      ["Otros", 1],
+    ]);
+  });
+
+  it("un ejercicio aparece en cada zona que trabaja, y cada sección cuenta lo mismo que su chip", () => {
+    const hipThrust = it_("Glúteos", "Isquiotibiales");
+    const groups = groupByRegion([hipThrust]);
+    expect(groups.map((g) => g.region)).toEqual(["Piernas", "Glúteos"]);
+
+    const db = buildSeed("2026-10-11");
+    const items = db.exercises.map((e) => ({ exercise: e }));
+    for (const g of groupByRegion(items)) {
+      if (g.region === "Otros") continue;
+      expect(g.items.length).toBe(db.exercises.filter((e) => inRegion(e, g.region as Exclude<typeof g.region, "Otros">)).length);
+    }
+    expect(groupByRegion(items).some((g) => g.region === "Otros")).toBe(false); // todo el seed tiene zona
   });
 });
