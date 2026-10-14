@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { data, type ItemCheck, type Profile, type Routine, type RoutineTree, type WorkoutSession } from "@/lib/data";
 import { addDays, startOfWeek, todayISO } from "@/lib/dates";
 import { useQuery } from "@/lib/hooks";
@@ -51,6 +51,28 @@ export function useClientRoutine() {
     ]);
     return { client, coach, routine, routines, sessions, checks, author, editor };
   }, [clientId], { live: false });
+
+  // Semana a semana (lunes a domingo): si la app quedó abierta (o en segundo plano) y empezó otra
+  // semana, al volver se recarga y los días aparecen sin hacer. El historial queda guardado.
+  const loadedWeek = useRef(startOfWeek(todayISO()));
+  const reloadRef = useRef(query.reload);
+  reloadRef.current = query.reload;
+  useEffect(() => {
+    const check = () => {
+      const week = startOfWeek(todayISO());
+      if (week === loadedWeek.current || document.visibilityState !== "visible") return;
+      loadedWeek.current = week;
+      void reloadRef.current();
+    };
+    window.addEventListener("focus", check);
+    document.addEventListener("visibilitychange", check);
+    const id = setInterval(check, 60_000); // abierta y en pantalla justo a la medianoche del domingo
+    return () => {
+      window.removeEventListener("focus", check);
+      document.removeEventListener("visibilitychange", check);
+      clearInterval(id);
+    };
+  }, []);
 
   const { setData } = query;
   // Último estado (incluye lo optimista) para la cola de sincronización.

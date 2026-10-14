@@ -127,3 +127,32 @@ describe("helpers", () => {
     expect(todayLine({ ...tree.days[0]!, title: "Agilidad + tren sup." })).toBe("Hoy toca agilidad + tren sup. ¡No faltes!");
   });
 });
+
+describe("semana a semana", () => {
+  it("lo que completó una semana no cuenta para la siguiente: el lunes todo arranca sin hacer", () => {
+    // Semana del 12 al 18: hace los 3 días (el último, el domingo 18 a la noche).
+    const sessions = [
+      s("a", "A", at("2026-10-12"), at("2026-10-12", 11)),
+      s("b", "B", at("2026-10-15"), at("2026-10-15", 11)),
+      s("c", "C", at("2026-10-18", 21), at("2026-10-18", 22)),
+    ];
+    const checks = tree.days.flatMap((d, i) => d.blocks[0]!.items.map((it) => ({ sessionId: ["a", "b", "c"][i]!, itemId: it.id, checkedAt: "" })));
+
+    // Domingo: semana completa.
+    const sunday = "2026-10-18";
+    expect(weekSummary(tree, sessions, sunday).completed).toBe(3);
+    expect(dayProgress(tree.days[2]!, checks, sessionForDay(sessions, "C", sunday)?.id ?? null)).toEqual({ done: 5, total: 5 });
+
+    // Lunes siguiente: nada hecho todavía, se sugiere el Día A.
+    const monday = "2026-10-19";
+    expect(weekSummary(tree, sessions, monday).completed).toBe(0);
+    for (const d of tree.days) {
+      const session = sessionForDay(sessions, d.id, monday);
+      expect(session).toBeNull();
+      expect(dayProgress(d, checks, session?.id ?? null).done).toBe(0);
+    }
+    expect(suggestedDay(tree, sessions, monday)?.label).toBe("A");
+    // El historial no se borra (lo ve el profe).
+    expect(sessions).toHaveLength(3);
+  });
+});
