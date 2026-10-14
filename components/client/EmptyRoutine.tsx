@@ -7,7 +7,7 @@ export function EmptyRoutine({ title = "Mi rutina" }: { title?: string }) {
       <h1 className="display text-display-xl text-title">{title}</h1>
       <div className="flex flex-1 flex-col items-center justify-center text-center">
         <div className="flex h-36 w-36 items-center justify-center rounded-full border-2 border-dashed border-line">
-          <LogoMark className="h-14 w-12 text-line" title="" />
+          <LogoMark className="h-12 w-14 text-line" title="" />
         </div>
         <h2 className="display mt-8 text-h1">
           Tu profe todavía no

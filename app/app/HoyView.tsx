@@ -45,7 +45,7 @@ export function HoyView() {
       <header className="bg-grid px-gutter pb-6 pt-10">
         <div className="flex items-start justify-between gap-3">
           <p className="label">{formatLong(todayISO())}</p>
-          <LogoMark className="h-7 w-6 text-ink" />
+          <LogoMark className="h-6 w-7 text-ink" />
         </div>
         <h1 className="display mt-3 text-display-xl">Hola, {firstName}</h1>
         <p className="mt-2 text-body text-title">{todayLine(day)}</p>

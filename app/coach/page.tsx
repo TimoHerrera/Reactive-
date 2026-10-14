@@ -94,7 +94,7 @@ export default function PanelPage() {
       <header className="bg-grid px-gutter pb-5 pt-8">
         <div className="flex items-center justify-between">
           <span className="flex items-center gap-2">
-            <LogoMark className="h-7 w-6 text-ink" />
+            <LogoMark className="h-6 w-7 text-ink" />
             <span className="label">Modo profe</span>
           </span>
           <CoachMenu />

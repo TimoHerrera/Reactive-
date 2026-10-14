@@ -38,7 +38,7 @@ export default function ErrorScreen({ error, reset }: { error: Error & { digest?
 
   return (
     <main className="phone bg-grid flex min-h-dvh flex-col items-center justify-center px-gutter text-center">
-      <LogoMark className="h-14 w-12 text-ink" />
+      <LogoMark className="h-12 w-14 text-ink" />
       <h1 className="display mt-8 text-h1">Algo falló</h1>
       <p className="mt-3 max-w-[18rem] text-body text-muted">
         {isChunk ? "Hay una versión nueva de la app o se cortó la conexión." : "Tuvimos un problema al cargar esta pantalla."}

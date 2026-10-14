@@ -3,7 +3,7 @@
 // - Navegación: siempre red; sin conexión, se muestra el shell cacheado («/»).
 // - Assets estáticos con hash (/_next/static), íconos y manifest: cache primero.
 // Subir VERSION borra las cachés anteriores (v1 guardaba HTML de /app y /coach).
-const VERSION = "reactive-v2";
+const VERSION = "reactive-v3"; // v3: logo «R» oficial en los íconos
 const SHELL = ["/", "/manifest.webmanifest", "/icons/192", "/icons/512"];
 
 self.addEventListener("install", (event) => {
