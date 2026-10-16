@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { useClientRoutine } from "@/components/client/useClientRoutine";
 import { UpcomingAppointments } from "@/components/agenda/NextAppointmentCard";
+import { MyBillingCard } from "@/components/billing/MyBillingCard";
 import { PickClientNotice, ViewAsBanner, ViewAsNoAccess } from "@/components/client/ViewAsBanner";
 import { Loading } from "@/components/Loading";
 import { useSession } from "@/components/SessionProvider";
@@ -63,6 +64,7 @@ export function PerfilView() {
         )}
 
         <UpcomingAppointments clientId={r.clientId} />
+        <MyBillingCard clientId={r.clientId} />
 
         <section className="rounded-lg border border-line bg-surface px-4" aria-label="Tus datos">
           <Row label="Email">{client.email}</Row>

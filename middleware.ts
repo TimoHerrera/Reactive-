@@ -55,7 +55,7 @@ export async function middleware(req: NextRequest) {
   // /coach es solo para staff. /app lo ve el cliente y también el staff («Ver como Martina»).
   if (pathname.startsWith("/coach") && role === "client") return redirect("/app");
   // Equipo (alta de profes, roles, desactivar): solo admin.
-  if (pathname.startsWith("/coach/equipo") && role !== "admin") return redirect("/coach");
+  if ((pathname.startsWith("/coach/equipo") || pathname.startsWith("/coach/ajustes")) && role !== "admin") return redirect("/coach");
   if (role && AUTH_PAGES.includes(pathname)) return redirect(homeForRole(role));
 
   return res;

@@ -6,6 +6,9 @@ import type {
   AccessRequest,
   AccessRequestStatus,
   Appointment,
+  AppSettings,
+  ClientPlan,
+  Payment,
   CoachNote,
   Exercise,
   ExerciseView,
@@ -199,6 +202,25 @@ export interface AppointmentsRepo {
   requestReschedule(id: string, input: { reason: string; preference: string }): Promise<Appointment>;
 }
 
+export type PlanInput = Pick<ClientPlan, "kind" | "amountCents" | "dueDay" | "packSessions" | "startsOn" | "active">;
+export type PaymentInput = Pick<Payment, "clientId" | "amountCents" | "paidAt" | "method" | "period" | "sessions" | "note">;
+
+export interface BillingRepo {
+  /** Profe: planes de sus pacientes; admin: todos; paciente: el suyo, solo si «Mostrar estado de cuota» está activado. */
+  listPlans(): Promise<ClientPlan[]>;
+  setPlan(clientId: string, input: PlanInput): Promise<ClientPlan>;
+  /** Mismo alcance que los planes. */
+  listPayments(filter?: { clientId?: string }): Promise<Payment[]>;
+  addPayment(input: PaymentInput): Promise<Payment>;
+  removePayment(id: string): Promise<void>;
+}
+
+export interface SettingsRepo {
+  get(): Promise<AppSettings>;
+  /** Solo admin. */
+  update(patch: Partial<Omit<AppSettings, "updatedAt">>): Promise<AppSettings>;
+}
+
 export interface DataSource {
   kind: "mock" | "supabase";
   auth: AuthRepo;
@@ -212,4 +234,6 @@ export interface DataSource {
   accessRequests: AccessRequestsRepo;
   team: TeamRepo;
   appointments: AppointmentsRepo;
+  billing: BillingRepo;
+  settings: SettingsRepo;
 }

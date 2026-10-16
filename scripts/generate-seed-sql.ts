@@ -121,6 +121,22 @@ for (const a of db.appointments) {
   push(`insert into public.appointments (id, client_id, coach_id, starts_at, duration_min, type, status, notes, series_id, created_by, created_at, reschedule_reason, reschedule_preference, reschedule_requested_at) values (${q(a.id)}, ${q(a.clientId)}, ${q(a.coachId)}, ${tsAny(a.startsAt)}, ${a.durationMin}, ${q(a.type)}, ${q(a.status)}, ${q(a.notes)}, ${q(a.seriesId)}, ${q(a.createdBy)}, ${ts(a.createdAt)}, ${q(a.rescheduleReason)}, ${q(a.reschedulePreference)}, ${a.rescheduleRequestedAt ? ts(a.rescheduleRequestedAt) : "null"}) on conflict (id) do nothing;`);
 }
 
+push("\n-- ── Pagos ───────────────────────────────────────────────────────");
+// Meses «YYYY-MM» relativos al mes actual.
+const period = (p: string | null) => {
+  if (!p) return "null";
+  const [y, m] = p.split("-").map(Number);
+  const months = (y! - NOW.getFullYear()) * 12 + (m! - 1 - NOW.getMonth());
+  return months === 0 ? "to_char(current_date, 'YYYY-MM')" : `to_char(current_date ${months > 0 ? "+" : "-"} interval '${Math.abs(months)} months', 'YYYY-MM')`;
+};
+for (const p of db.clientPlans) {
+  push(`insert into public.client_plans (client_id, kind, amount_cents, due_day, pack_sessions, starts_on, active) values (${q(p.clientId)}, ${q(p.kind)}, ${p.amountCents}, ${num(p.dueDay)}, ${num(p.packSessions)}, ${date(p.startsOn)}, ${bool(p.active)}) on conflict (client_id) do nothing;`);
+}
+for (const p of db.payments) {
+  push(`insert into public.payments (id, client_id, amount_cents, paid_at, method, period, sessions, note, registered_by, created_at) values (${q(p.id)}, ${q(p.clientId)}, ${p.amountCents}, ${date(p.paidAt)}, ${q(p.method)}, ${period(p.period)}, ${num(p.sessions)}, ${q(p.note)}, ${q(p.registeredBy)}, ${ts(p.createdAt)}) on conflict (id) do nothing;`);
+}
+push(`update public.app_settings set transfer_alias = ${q(db.settings.transferAlias)}, show_billing_to_client = ${bool(db.settings.showBillingToClient)} where id;`);
+
 push("\ncommit;\n");
 
 const target = resolve(__dirname, "../supabase/seed.sql");

@@ -282,3 +282,58 @@ export interface Appointment {
   reschedulePreference: string | null;
   rescheduleRequestedAt: ISODateTime | null;
 }
+
+// ── Pagos (F10) ─────────────────────────────────────────────────────
+
+/** «YYYY-MM» */
+export type Period = string;
+export type PlanKind = "mensual" | "por_sesion" | "pack";
+export type PaymentMethod = "efectivo" | "transferencia" | "mercadopago" | "otro";
+
+export const PLAN_KIND_LABEL: Record<PlanKind, string> = { mensual: "Mensual", por_sesion: "Por sesión", pack: "Pack de sesiones" };
+export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
+  efectivo: "Efectivo",
+  transferencia: "Transferencia",
+  mercadopago: "Mercado Pago",
+  otro: "Otro",
+};
+
+/** Plan de cobro de un paciente. Montos en centavos (entero). */
+export interface ClientPlan {
+  clientId: string;
+  kind: PlanKind;
+  /** Mensual: la cuota. Por sesión: el valor de cada una. Pack: el precio del pack. */
+  amountCents: number;
+  /** Mensual: día del mes en que vence (1–31; en meses más cortos, el último día). */
+  dueDay: number | null;
+  /** Pack: cantidad de sesiones. */
+  packSessions: number | null;
+  startsOn: ISODate;
+  active: boolean;
+  updatedAt: ISODateTime;
+}
+
+export interface Payment {
+  id: string;
+  clientId: string;
+  amountCents: number;
+  paidAt: ISODate;
+  method: PaymentMethod;
+  /** Mensual: mes que cubre. */
+  period: Period | null;
+  /** Pack / por sesión: cantidad de sesiones que paga. */
+  sessions: number | null;
+  note: string | null;
+  registeredBy: string | null;
+  createdAt: ISODateTime;
+}
+
+/** Ajustes del centro (solo admin los cambia). */
+export interface AppSettings {
+  transferAlias: string;
+  paymentTemplate: string;
+  appointmentTemplate: string;
+  /** Si el paciente ve el estado de su cuota en Perfil. */
+  showBillingToClient: boolean;
+  updatedAt: ISODateTime | null;
+}

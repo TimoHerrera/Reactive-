@@ -9,6 +9,9 @@ import type {
   ItemCheck,
   SetLog,
   Appointment,
+  AppSettings,
+  ClientPlan,
+  Payment,
   Profile,
   Routine,
   RoutineBlock,
@@ -18,6 +21,8 @@ import type {
 } from "./types";
 import { addDays, todayISO } from "@/lib/dates";
 import { baTimestamp } from "@/lib/agenda/time";
+import { DEFAULT_APPOINTMENT_TEMPLATE } from "@/lib/agenda/agenda";
+import { addMonths, DEFAULT_PAYMENT_TEMPLATE, periodOf } from "@/lib/billing/status";
 
 /** Contraseña de todos los usuarios de demo (mock y seed.sql). Solo para desarrollo. */
 export const DEMO_PASSWORD = "reactive-demo";
@@ -55,6 +60,9 @@ export interface Db {
   itemChecks: ItemCheck[];
   setLogs: SetLog[];
   appointments: Appointment[];
+  clientPlans: ClientPlan[];
+  payments: Payment[];
+  settings: AppSettings;
   exerciseViews: ExerciseView[];
   accessRequests: (AccessRequest & { ipHash?: string | null })[];
   /** Solo mock: invitaciones simuladas (token → usuario). */
@@ -664,6 +672,7 @@ export function buildSeed(today: string = todayISO(), now: Date = new Date()): D
       clientSince: addDays(today, -10),
     }),
     client(IDS.federico, "Federico A.", "federico@reactive.test", {
+      phone: "+54 9 11 5555-0108",
       sport: "Natación",
       caseType: "dolor_cronico",
       caseDetail: "Cervical",
@@ -892,6 +901,66 @@ export function buildSeed(today: string = todayISO(), now: Date = new Date()): D
     });
   }
 
+  // ── Pagos: un caso de cada estado, sin importar qué día se abra la demo ──
+  const cur = periodOf(today);
+  const monthsAgo = (n: number) => `${addMonths(cur, -n)}-01`;
+  const soon = addDays(today, 3); // Sofía: su cuota vence en 3 días → «Por vencer»
+  const plan = (clientId: string, p: Partial<ClientPlan>): ClientPlan => ({
+    clientId,
+    kind: "mensual",
+    amountCents: 3_000_000,
+    dueDay: 10,
+    packSessions: null,
+    startsOn: monthsAgo(3),
+    active: true,
+    updatedAt: created,
+    ...p,
+  });
+  const clientPlans: ClientPlan[] = [
+    plan(IDS.martina, { amountCents: 3_500_000 }), // al día
+    plan(IDS.sofia, { dueDay: Number(soon.slice(8, 10)) }), // por vencer
+    plan(IDS.federico, { amountCents: 3_500_000 }), // vencido (debe meses)
+    plan(IDS.tomas, { kind: "pack", amountCents: 4_000_000, packSessions: 1, dueDay: null, startsOn: addDays(today, -20) }), // renovar pack
+    plan(IDS.valentina, { kind: "pack", amountCents: 12_000_000, packSessions: 4, dueDay: null, startsOn: addDays(today, -15) }), // quedan 3
+    plan(IDS.joaquin, { kind: "por_sesion", amountCents: 1_200_000, dueDay: null, startsOn: addDays(today, -30) }), // al día
+    plan(IDS.bruno, { amountCents: 3_000_000 }), // al día (de Caro)
+  ];
+  const payments: Payment[] = [];
+  const addPay = (clientId: string, p: Partial<Payment>) =>
+    payments.push({
+      id: seedId("b", payments.length + 1),
+      clientId,
+      amountCents: clientPlans.find((x) => x.clientId === clientId)!.amountCents,
+      paidAt: today,
+      method: "transferencia",
+      period: null,
+      sessions: null,
+      note: null,
+      registeredBy: clientId === IDS.bruno ? IDS.caro : IDS.nico,
+      createdAt: ts(-1),
+      ...p,
+    });
+  const payMonths = (clientId: string, from: number, to: number) => {
+    for (let n = from; n >= to; n--) {
+      const period = addMonths(cur, -n);
+      addPay(clientId, { period, paidAt: `${period}-05` > today ? today : `${period}-05`, method: n % 2 ? "mercadopago" : "transferencia" });
+    }
+  };
+  payMonths(IDS.martina, 3, 0);
+  payMonths(IDS.bruno, 3, 0);
+  for (let n = 3; addMonths(cur, -n) < periodOf(soon); n--) addPay(IDS.sofia, { period: addMonths(cur, -n), paidAt: `${addMonths(cur, -n)}-05` > today ? today : `${addMonths(cur, -n)}-05` });
+  payMonths(IDS.federico, 3, 3);
+  addPay(IDS.tomas, { sessions: 1, paidAt: addDays(today, -20), method: "efectivo" });
+  addPay(IDS.valentina, { sessions: 4, paidAt: addDays(today, -15) });
+
+  const settings: AppSettings = {
+    transferAlias: "reactive.kinesio",
+    paymentTemplate: DEFAULT_PAYMENT_TEMPLATE,
+    appointmentTemplate: DEFAULT_APPOINTMENT_TEMPLATE,
+    showBillingToClient: true,
+    updatedAt: null,
+  };
+
   return {
     profiles,
     coachNotes,
@@ -904,6 +973,9 @@ export function buildSeed(today: string = todayISO(), now: Date = new Date()): D
     itemChecks,
     setLogs,
     appointments,
+    clientPlans,
+    payments,
+    settings,
     exerciseViews,
     accessRequests,
     activations: [],
