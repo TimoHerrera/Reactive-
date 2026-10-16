@@ -13,6 +13,7 @@ import type {
   Exercise,
   ExerciseView,
   ItemCheck,
+  NotificationPrefs,
   Profile,
   PublicCoach,
   Routine,
@@ -221,6 +222,18 @@ export interface SettingsRepo {
   update(patch: Partial<Omit<AppSettings, "updatedAt">>): Promise<AppSettings>;
 }
 
+export type NotificationPrefsInput = Omit<NotificationPrefs, "updatedAt">;
+
+/** Avisos del profe (F11). Cada uno ve y cambia solo lo suyo. Solo staff. */
+export interface NotificationsRepo {
+  /** Mis preferencias; si nunca las guardé, las de fábrica (`defaultPrefs`). */
+  getPrefs(): Promise<NotificationPrefs>;
+  savePrefs(input: NotificationPrefsInput): Promise<NotificationPrefs>;
+  /** Claves de los avisos que ya vi. */
+  listSeen(): Promise<string[]>;
+  markSeen(keys: string[]): Promise<void>;
+}
+
 export interface DataSource {
   kind: "mock" | "supabase";
   auth: AuthRepo;
@@ -236,4 +249,5 @@ export interface DataSource {
   appointments: AppointmentsRepo;
   billing: BillingRepo;
   settings: SettingsRepo;
+  notifications: NotificationsRepo;
 }

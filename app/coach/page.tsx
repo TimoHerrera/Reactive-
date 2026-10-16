@@ -6,6 +6,7 @@ import { TodayCard } from "@/components/agenda/TodayCard";
 import { CobrosCard } from "@/components/billing/CobrosCard";
 import { CoachFilterChips, useCoachFilter } from "@/components/coach/CoachFilter";
 import { CoachMenu } from "@/components/coach/CoachMenu";
+import { AlertsBell } from "@/components/notify/AlertsBell";
 import { InlineLoading } from "@/components/Loading";
 import { QueryError } from "@/components/QueryError";
 import { useSession } from "@/components/SessionProvider";
@@ -104,7 +105,10 @@ export default function PanelPage() {
             <LogoMark className="h-6 w-7 text-ink" />
             <span className="label">Modo profe</span>
           </span>
-          <CoachMenu />
+          <span className="flex items-center gap-1">
+            <AlertsBell />
+            <CoachMenu />
+          </span>
         </div>
         <h1 className="display mt-4 text-display-xl text-title">Panel</h1>
         <p className="mt-1 text-body text-title">{greeting(firstName)} Esto es lo que pasa hoy.</p>

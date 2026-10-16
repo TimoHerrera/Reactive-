@@ -337,3 +337,26 @@ export interface AppSettings {
   showBillingToClient: boolean;
   updatedAt: ISODateTime | null;
 }
+
+// ── Avisos del profe (F11) ──────────────────────────────────────────
+
+/** Qué avisos quiere recibir cada profe y cuándo. Cada uno arma los suyos. */
+export interface NotificationPrefs {
+  /** Cuota mensual por vencer: avisar `dueSoonDays` días antes del vencimiento. */
+  dueSoonEnabled: boolean;
+  dueSoonDays: number;
+  /** Venció y no pagó: avisar a los `overdueAfterDays` días (0 = el mismo día) y repetir cada `overdueRepeatDays` (null = una vez). */
+  overdueEnabled: boolean;
+  overdueAfterDays: number;
+  overdueRepeatDays: number | null;
+  /** Pack: avisar cuando queden `packLowSessions` sesiones o menos (0 = cuando se termina). */
+  packLowEnabled: boolean;
+  packLowSessions: number;
+  /** Un paciente pidió reprogramar un turno. */
+  rescheduleEnabled: boolean;
+  /** Admin: avisos de todo el centro o solo de sus pacientes. Profe: siempre los suyos. */
+  scope: "mine" | "all";
+  /** Además de la app, un resumen diario por mail con los avisos nuevos. */
+  emailEnabled: boolean;
+  updatedAt: ISODateTime | null;
+}

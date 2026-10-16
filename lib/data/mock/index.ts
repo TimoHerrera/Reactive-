@@ -8,6 +8,7 @@ import {
   isStaff,
   type AccessRequest,
   type ClientPlan,
+  type NotificationPrefs,
   type Payment,
   type Profile,
   type Routine,
@@ -50,6 +51,7 @@ import { byStart } from "@/lib/agenda/agenda";
 import { applyPatch, buildAppointments, canRequestReschedule, requestReschedule, validateAppointment } from "@/lib/agenda/series";
 import { baDate } from "@/lib/agenda/time";
 import { validatePayment, validatePlan } from "@/lib/billing/validate";
+import { defaultPrefs, validatePrefs } from "@/lib/notify/alerts";
 import { delay, getDb, mutate, resetMockDb, uuid } from "./store";
 import { mockVideos } from "./videos";
 
@@ -812,6 +814,42 @@ export const mockDataSource: DataSource = {
           return db.settings;
         }),
       );
+    },
+  },
+
+  notifications: {
+    async getPrefs() {
+      const me = requireStaff();
+      const saved = getDb().notificationPrefs.find((p) => p.userId === me.id);
+      if (!saved) return delay(defaultPrefs(me.role));
+      const prefs: NotificationPrefs & { userId?: string } = { ...saved };
+      delete prefs.userId;
+      return delay(prefs as NotificationPrefs);
+    },
+    async savePrefs(input) {
+      const me = requireStaff();
+      const error = validatePrefs(input);
+      if (error) throw new Error(error);
+      return delay(
+        mutate((db) => {
+          // Un profe no puede pedir los avisos de todo el centro.
+          const prefs = { ...input, scope: me.role === "admin" ? input.scope : ("mine" as const), updatedAt: now() };
+          db.notificationPrefs = [...db.notificationPrefs.filter((p) => p.userId !== me.id), { ...prefs, userId: me.id }];
+          return prefs;
+        }),
+      );
+    },
+    async listSeen() {
+      const me = requireStaff();
+      return delay(getDb().notificationSeen.filter((s) => s.userId === me.id).map((s) => s.key));
+    },
+    async markSeen(keys) {
+      const me = requireStaff();
+      mutate((db) => {
+        const seen = new Set(db.notificationSeen.filter((s) => s.userId === me.id).map((s) => s.key));
+        for (const key of new Set(keys)) if (!seen.has(key)) db.notificationSeen.push({ userId: me.id, key, seenAt: now() });
+      });
+      await delay(undefined);
     },
   },
 

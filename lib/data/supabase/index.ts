@@ -27,6 +27,7 @@ import { baStartOfDay } from "@/lib/agenda/time";
 import { DEFAULT_APPOINTMENT_TEMPLATE } from "@/lib/agenda/agenda";
 import { DEFAULT_PAYMENT_TEMPLATE } from "@/lib/billing/status";
 import { validatePayment, validatePlan } from "@/lib/billing/validate";
+import { defaultPrefs, validatePrefs } from "@/lib/notify/alerts";
 
 /** Errores de server actions → excepción (con «Ver ficha» si el email ya existe). */
 function fail(res: { error: string; existing?: ExistingUser | null }): never {
@@ -41,9 +42,7 @@ import type {
   ExerciseView,
   Appointment,
   AppSettings,
-  ClientPlan,
   ItemCheck,
-  Payment,
   SetLog,
   Profile,
   Routine,
@@ -52,7 +51,7 @@ import type {
   WorkoutSession,
 } from "../types";
 
-type Row = Record<string, unknown>;
+import { fromPrefs, toAppointment, toPayment, toPlan, toPrefs, toProfile, type Row } from "./rows";
 
 const sb = (): SupabaseClient => getBrowserSupabase();
 
@@ -62,26 +61,6 @@ function check({ data, error }: { data: unknown; error: { message: string } | nu
 }
 
 // ── Mapeos fila ↔ dominio ─────────────────────────────────────────
-
-const toProfile = (r: Row): Profile => ({
-  id: r.id as string,
-  role: r.role as Profile["role"],
-  fullName: r.full_name as string,
-  email: (r.email as string) ?? "",
-  phone: (r.phone as string) ?? null,
-  title: (r.title as string) ?? null,
-  sport: (r.sport as string) ?? null,
-  caseType: (r.case_type as Profile["caseType"]) ?? null,
-  caseDetail: (r.case_detail as string) ?? null,
-  goal: (r.goal as string) ?? null,
-  coachId: (r.coach_id as string) ?? null,
-  clientSince: (r.client_since as string) ?? null,
-  createdAt: r.created_at as string,
-  bio: (r.bio as string) ?? null,
-  avatarPath: (r.avatar_path as string) ?? null,
-  activatedAt: (r.activated_at as string) ?? null,
-  disabledAt: (r.disabled_at as string) ?? null,
-});
 
 const fromProfilePatch = (p: Partial<Profile>): Row => {
   const map: Record<string, string> = {
@@ -195,23 +174,6 @@ const toSetLog = (r: Row): SetLog => ({
 
 const fromSetLog = (l: SetLogInput): Row => ({ set_number: l.setNumber, reps: l.reps, load: l.load, rpe: l.rpe, note: l.note });
 
-const toAppointment = (r: Row): Appointment => ({
-  id: r.id as string,
-  clientId: r.client_id as string,
-  coachId: r.coach_id as string,
-  startsAt: r.starts_at as string,
-  durationMin: r.duration_min as number,
-  type: r.type as Appointment["type"],
-  status: r.status as Appointment["status"],
-  notes: (r.notes as string) ?? null,
-  seriesId: (r.series_id as string) ?? null,
-  createdBy: (r.created_by as string) ?? null,
-  createdAt: r.created_at as string,
-  rescheduleReason: (r.reschedule_reason as string) ?? null,
-  reschedulePreference: (r.reschedule_preference as string) ?? null,
-  rescheduleRequestedAt: (r.reschedule_requested_at as string) ?? null,
-});
-
 const fromAppointment = (a: Appointment): Row => ({
   id: a.id,
   client_id: a.clientId,
@@ -228,30 +190,6 @@ const fromAppointment = (a: Appointment): Row => ({
 });
 
 const newId = () => crypto.randomUUID();
-
-const toPlan = (r: Row): ClientPlan => ({
-  clientId: r.client_id as string,
-  kind: r.kind as ClientPlan["kind"],
-  amountCents: Number(r.amount_cents),
-  dueDay: (r.due_day as number) ?? null,
-  packSessions: (r.pack_sessions as number) ?? null,
-  startsOn: r.starts_on as string,
-  active: !!r.active,
-  updatedAt: r.updated_at as string,
-});
-
-const toPayment = (r: Row): Payment => ({
-  id: r.id as string,
-  clientId: r.client_id as string,
-  amountCents: Number(r.amount_cents),
-  paidAt: r.paid_at as string,
-  method: r.method as Payment["method"],
-  period: (r.period as string) ?? null,
-  sessions: (r.sessions as number) ?? null,
-  note: (r.note as string) ?? null,
-  registeredBy: (r.registered_by as string) ?? null,
-  createdAt: r.created_at as string,
-});
 
 const toSettings = (r: Row | null): AppSettings => ({
   transferAlias: (r?.transfer_alias as string) ?? "",
@@ -818,6 +756,34 @@ export const supabaseDataSource: DataSource = {
       if (patch.appointmentTemplate !== undefined) row.appointment_template = patch.appointmentTemplate;
       if (patch.showBillingToClient !== undefined) row.show_billing_to_client = patch.showBillingToClient;
       return toSettings(check(await sb().from("app_settings").upsert(row).select().single()) as Row);
+    },
+  },
+
+  notifications: {
+    async getPrefs() {
+      const me = await sessionUser();
+      if (!me) throw new Error("Iniciá sesión de nuevo.");
+      const row = check(await sb().from("notification_prefs").select("*").eq("user_id", me.id).maybeSingle()) as Row | null;
+      return row ? toPrefs(row) : defaultPrefs(me.role);
+    },
+    async savePrefs(input) {
+      const me = await sessionUser();
+      if (!me) throw new Error("Iniciá sesión de nuevo.");
+      const error = validatePrefs(input);
+      if (error) throw new Error(error);
+      return toPrefs(check(await sb().from("notification_prefs").upsert(fromPrefs(me.id, input)).select().single()) as Row);
+    },
+    async listSeen() {
+      const me = await sessionUser();
+      if (!me) return [];
+      const rows = check(await sb().from("notification_state").select("key").eq("user_id", me.id).not("seen_at", "is", null)) as Row[];
+      return rows.map((r) => r.key as string);
+    },
+    async markSeen(keys) {
+      const me = await sessionUser();
+      if (!me || keys.length === 0) return;
+      const seenAt = new Date().toISOString();
+      check(await sb().from("notification_state").upsert([...new Set(keys)].map((key) => ({ user_id: me.id, key, seen_at: seenAt }))));
     },
   },
 };
