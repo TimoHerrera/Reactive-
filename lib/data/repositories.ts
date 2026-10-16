@@ -12,6 +12,7 @@ import type {
   Routine,
   RoutineTree,
   SessionUser,
+  SetLog,
   WorkoutSession,
 } from "./types";
 
@@ -99,7 +100,13 @@ export interface SessionsRepo {
   complete(sessionId: string, completed: boolean): Promise<WorkoutSession>;
   listChecks(sessionIds: string[]): Promise<ItemCheck[]>;
   setCheck(sessionId: string, itemId: string, checked: boolean): Promise<void>;
+  /** Registro real por serie de las sesiones dadas (staff: solo de sus clientes). */
+  listSetLogs(sessionIds: string[]): Promise<SetLog[]>;
+  /** Reemplaza el registro de un ejercicio en una sesión. Solo el cliente dueño de la sesión. */
+  saveSetLogs(sessionId: string, itemId: string, logs: SetLogInput[]): Promise<SetLog[]>;
 }
+
+export type SetLogInput = Pick<SetLog, "setNumber" | "reps" | "load" | "rpe" | "note">;
 
 export interface ViewsRepo {
   record(clientId: string, exerciseId: string): Promise<void>;

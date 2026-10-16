@@ -4,6 +4,7 @@ import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { EmptyRoutine } from "@/components/client/EmptyRoutine";
+import { HowDidItGo } from "@/components/client/HowDidItGo";
 import { SyncToast } from "@/components/client/SyncToast";
 import { useClientRoutine } from "@/components/client/useClientRoutine";
 import { PickClientNotice, ViewAsBanner, ViewAsNoAccess } from "@/components/client/ViewAsBanner";
@@ -14,6 +15,7 @@ import { formatDM } from "@/lib/dates";
 import { useQuery } from "@/lib/hooks";
 import { dayProgress, sessionForDay, suggestedDay } from "@/lib/routine/progress";
 import { clearRutinaNav, saveRutinaPos, takeRutinaPos } from "@/lib/routine/scroll";
+import { effortLabel } from "@/lib/routine/effort";
 
 function chipsFor(item: RoutineItem): ExerciseChip[] {
   const out: ExerciseChip[] = [];
@@ -45,6 +47,8 @@ export function RutinaView() {
 
   // Restaurar posición al volver del video (mismo día y mismo scroll) y resaltar el ejercicio.
   const [highlight, setHighlight] = useState<string | null>(null);
+  // «¿Cómo te fue?»: se abre al marcar un ejercicio (desmarcar es directo).
+  const [logFor, setLogFor] = useState<{ dayId: string; item: RoutineItem; name: string } | null>(null);
   const restored = useRef(false);
   const ready = !!routine && !!exercises.data;
   useLayoutEffect(() => {
@@ -169,11 +173,16 @@ export function RutinaView() {
                     name={ex?.name ?? item.rawName}
                     href={href}
                     chips={chipsFor(item)}
+                    effort={effortLabel(item)}
                     note={item.notes ?? undefined}
                     done={isChecked(item.id)}
                     highlight={highlight === item.id}
                     readOnly={r.readOnly}
-                    onToggle={r.readOnly ? undefined : () => r.toggleItem(day.id, item.id)}
+                    onToggle={
+                      r.readOnly
+                        ? undefined
+                        : () => (isChecked(item.id) ? r.toggleItem(day.id, item.id) : setLogFor({ dayId: day.id, item, name: ex?.name ?? item.rawName }))
+                    }
                     onOpen={() => {
                       // Fijamos el día en la URL para que «atrás» vuelva exactamente a este día.
                       if (urlDay !== day.id) window.history.replaceState(null, "", `/app/rutina?dia=${day.id}`);
@@ -186,6 +195,23 @@ export function RutinaView() {
           </section>
         ))}
       </div>
+
+      {logFor && (
+        <HowDidItGo
+          name={logFor.name}
+          item={logFor.item}
+          previous={session ? r.data!.setLogs.filter((l) => l.sessionId === session.id && l.itemId === logFor.item.id) : []}
+          onClose={() => setLogFor(null)}
+          onSkip={() => {
+            r.toggleItem(logFor.dayId, logFor.item.id);
+            setLogFor(null);
+          }}
+          onSave={(logs) => {
+            r.toggleItem(logFor.dayId, logFor.item.id, logs);
+            setLogFor(null);
+          }}
+        />
+      )}
 
       <SyncToast message={r.syncError} />
     </div>

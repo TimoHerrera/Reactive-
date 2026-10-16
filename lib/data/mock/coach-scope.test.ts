@@ -53,7 +53,7 @@ describe("autor de la rutina", () => {
   it("publicar desde el wizard: Nico carga → «Cargada por Nico»; el admin edita → «editada por Admin»", async () => {
     await as(NICO);
     const draft = { ...emptyDraft(), name: "Rutina de Nico", clientIds: [IDS.lucas] };
-    draft.days[0]!.blocks[0]!.items.push({ key: "x", exerciseId: null, rawName: "Plancha", sets: 3, reps: "30 s", load: "", rest: "", tempo: "", notes: "" });
+    draft.days[0]!.blocks[0]!.items.push({ key: "x", exerciseId: null, rawName: "Plancha", sets: 3, reps: "30 s", load: "", rest: "", tempo: "", rpeTarget: "", rirTarget: "", notes: "" });
     const { routineIds } = await publishDraft(draft, { clientIds: [IDS.lucas], saveAsTemplate: false });
     const id = routineIds[0]!.routineId;
     expect(getDb().routines.find((r) => r.id === id)).toMatchObject({ createdBy: IDS.nico, updatedBy: null });

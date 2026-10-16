@@ -29,6 +29,8 @@ const day = (id: string, label: string, n: number, title = "Tren inferior"): Day
         load: null,
         rest: "60 s",
         tempo: null,
+        rpeTarget: null,
+        rirTarget: null,
         notes: null,
       })),
     },

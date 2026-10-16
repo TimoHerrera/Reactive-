@@ -19,7 +19,8 @@ import { approveAccessRequest, listPublicCoaches, submitAccessRequest } from "@/
 import { deleteUser, setClientActive } from "@/app/actions/accounts";
 import { emitSessionRevoked } from "@/lib/auth/session-events";
 import { DuplicateEmailError, type ExistingUser } from "../errors";
-import type { DataSource } from "../repositories";
+import type { DataSource, SetLogInput } from "../repositories";
+import { cleanSetLogs } from "@/lib/routine/setlogs";
 
 /** Errores de server actions → excepción (con «Ver ficha» si el email ya existe). */
 function fail(res: { error: string; existing?: ExistingUser | null }): never {
@@ -33,6 +34,7 @@ import type {
   Exercise,
   ExerciseView,
   ItemCheck,
+  SetLog,
   Profile,
   Routine,
   RoutineTree,
@@ -170,6 +172,19 @@ const toSession = (r: Row): WorkoutSession => ({
   completedAt: (r.completed_at as string) ?? null,
 });
 
+const toSetLog = (r: Row): SetLog => ({
+  sessionId: r.session_id as string,
+  itemId: r.item_id as string,
+  setNumber: r.set_number as number,
+  reps: (r.reps as string) ?? null,
+  load: (r.load as string) ?? null,
+  rpe: r.rpe == null ? null : Number(r.rpe),
+  note: (r.note as string) ?? null,
+  createdAt: r.created_at as string,
+});
+
+const fromSetLog = (l: SetLogInput): Row => ({ set_number: l.setNumber, reps: l.reps, load: l.load, rpe: l.rpe, note: l.note });
+
 const ROUTINE_TREE_SELECT =
   "*, routine_days(*, routine_blocks(*, routine_items(*)))";
 
@@ -203,6 +218,8 @@ function toTree(r: Row): RoutineTree {
               load: (i.load as string) ?? null,
               rest: (i.rest as string) ?? null,
               tempo: (i.tempo as string) ?? null,
+              rpeTarget: (i.rpe_target as string) ?? null,
+              rirTarget: (i.rir_target as string) ?? null,
               notes: (i.notes as string) ?? null,
             })),
         })),
@@ -455,6 +472,17 @@ export const supabaseDataSource: DataSource = {
           checkedAt: r.checked_at as string,
         }),
       );
+    },
+    async listSetLogs(sessionIds) {
+      if (sessionIds.length === 0) return [];
+      const rows = check(await sb().from("set_logs").select("*").in("session_id", sessionIds).order("set_number"));
+      return (rows as Row[]).map(toSetLog);
+    },
+    async saveSetLogs(sessionId, itemId, logs) {
+      const rows = check(
+        await sb().rpc("save_set_logs", { p_session_id: sessionId, p_item_id: itemId, p_logs: cleanSetLogs(logs).map(fromSetLog) }),
+      );
+      return ((rows as Row[]) ?? []).map(toSetLog);
     },
     async setCheck(sessionId, itemId, checked) {
       if (checked) {

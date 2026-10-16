@@ -5,7 +5,7 @@
 //   - arriba puede haber título, fecha o indicaciones sueltas.
 import { normalizeText } from "@/lib/text";
 import { isKnownHeader, mapColumns, type ColumnMap } from "./columns";
-import { parseBlock, parseSets, type Issue, type ParsedDay, type ParsedRow, type ParseResult } from "./parse";
+import { checkEffort, parseBlock, parseSets, type Issue, type ParsedDay, type ParsedRow, type ParseResult } from "./parse";
 
 export type SheetRows = { name: string; rows: unknown[][] };
 
@@ -17,7 +17,7 @@ export function blockHeader(row: unknown[]): { name: string; map: ColumnMap } | 
   const first = str(row[0]);
   if (!first || isKnownHeader(first)) return null;
   const rest = mapColumns(row.slice(1));
-  const useful = rest.recognized.filter((f) => f === "reps" || f === "series" || f === "carga" || f === "descanso" || f === "notas");
+  const useful = rest.recognized.filter((f) => f === "reps" || f === "series" || f === "carga" || f === "descanso" || f === "rpe" || f === "rir" || f === "notas");
   if (useful.length < 2) return null;
   const map: ColumnMap = {};
   for (const f of rest.recognized) map[f] = rest.map[f]! + 1;
@@ -103,6 +103,8 @@ export function parseBlockSheets(sheets: SheetRows[]): ParseResult {
         reps: at(block.map.reps),
         load: at(block.map.carga),
         rest: at(block.map.descanso),
+        rpe: at(block.map.rpe),
+        rir: at(block.map.rir),
         notes: at(block.map.notas),
       };
       block.rows.push(parsed);
@@ -127,6 +129,7 @@ export function parseBlockSheets(sheets: SheetRows[]): ParseResult {
   });
 
   days.sort((a, b) => a.label.localeCompare(b.label));
+  checkEffort(rows, warnings);
   if (!errors.length && rows.length === 0) {
     errors.push({ kind: "error", title: "No hay ejercicios", detail: "Encontramos los bloques pero ninguna fila con ejercicios." });
   }

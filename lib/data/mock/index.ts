@@ -35,6 +35,7 @@ import {
   validateAccessRequest,
 } from "@/lib/access/rules";
 import { DuplicateEmailError, existingUserFor, sameName } from "../errors";
+import { cleanSetLogs } from "@/lib/routine/setlogs";
 import { delay, getDb, mutate, resetMockDb, uuid } from "./store";
 import { mockVideos } from "./videos";
 
@@ -140,6 +141,7 @@ function purgeUser(db: MockDb, p: Profile, adminId: string, reassignTo: string |
     db.routineDays = db.routineDays.filter((d) => !routineIds.has(d.routineId));
     db.routines = db.routines.filter((r) => !routineIds.has(r.id));
     db.itemChecks = db.itemChecks.filter((c) => !sessionIds.has(c.sessionId));
+    db.setLogs = db.setLogs.filter((l) => !sessionIds.has(l.sessionId));
     db.workoutSessions = db.workoutSessions.filter((s) => !sessionIds.has(s.id));
     db.exerciseViews = db.exerciseViews.filter((v) => v.clientId !== p.id);
     db.coachNotes = db.coachNotes.filter((n) => n.clientId !== p.id);
@@ -632,6 +634,27 @@ export const mockDataSource: DataSource = {
         if (checked) db.itemChecks.push({ sessionId, itemId, checkedAt: now() });
       });
       return delay(undefined, 40);
+    },
+    async listSetLogs(sessionIds) {
+      const me = currentUser();
+      const db = getDb();
+      const visible = new Set(db.workoutSessions.filter((s) => sessionIds.includes(s.id) && seesClient(db, me, s.clientId)).map((s) => s.id));
+      return delay(
+        db.setLogs.filter((l) => visible.has(l.sessionId)).sort((a, b) => a.itemId.localeCompare(b.itemId) || a.setNumber - b.setNumber),
+        40,
+      );
+    },
+    async saveSetLogs(sessionId, itemId, logs) {
+      const me = currentUser();
+      return delay(
+        mutate((db) => {
+          if (!db.workoutSessions.some((s) => s.id === sessionId && s.clientId === me?.id)) throw new Error("Solo el cliente registra su entrenamiento.");
+          const clean = cleanSetLogs(logs).map((l) => ({ ...l, sessionId, itemId, createdAt: now() }));
+          db.setLogs = [...db.setLogs.filter((l) => !(l.sessionId === sessionId && l.itemId === itemId)), ...clean];
+          return clean;
+        }),
+        40,
+      );
     },
   },
 

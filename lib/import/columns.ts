@@ -1,7 +1,8 @@
-// Columnas de la planilla: Día | Bloque | Orden | Ejercicio | Series | Reps | Carga | Descanso | Notas
+// Columnas de la planilla: Día | Bloque | Orden | Ejercicio | Series | Reps | Carga | Descanso | RPE | RIR | Observaciones
+// RPE y RIR son opcionales: los Excel viejos sin esas columnas se siguen aceptando.
 import { normalizeHeader } from "@/lib/text";
 
-export const FIELDS = ["dia", "bloque", "orden", "ejercicio", "series", "reps", "carga", "descanso", "notas"] as const;
+export const FIELDS = ["dia", "bloque", "orden", "ejercicio", "series", "reps", "carga", "descanso", "rpe", "rir", "notas"] as const;
 export type Field = (typeof FIELDS)[number];
 
 /** Encabezados tal cual en la plantilla. */
@@ -14,7 +15,9 @@ export const FIELD_LABEL: Record<Field, string> = {
   reps: "Reps",
   carga: "Carga",
   descanso: "Descanso",
-  notas: "Notas",
+  rpe: "RPE",
+  rir: "RIR",
+  notas: "Observaciones",
 };
 
 export const REQUIRED: Field[] = ["ejercicio"];
@@ -29,6 +32,8 @@ const ACCEPTED: Record<Field, string[]> = {
   reps: ["reps", "rep", "repeticiones", "repeticion", "reps / tiempo", "repeticiones / tiempo"],
   carga: ["carga", "peso", "kg", "load"],
   descanso: ["descanso", "desc.", "desc", "pausa", "rest"],
+  rpe: ["rpe", "rpe objetivo", "esfuerzo", "esfuerzo percibido", "borg"],
+  rir: ["rir", "rir objetivo", "rer", "reps en reserva", "repeticiones en reserva"],
   notas: ["notas", "nota", "observaciones", "obs", "comentarios", "indicaciones"],
 };
 

@@ -145,6 +145,11 @@ export interface RoutineItem {
   load: string | null;
   rest: string | null;
   tempo: string | null;
+  /** RPE objetivo (1–10). Texto para aceptar rangos: «7», «7-8». */
+  rpeTarget: string | null;
+  /** Repeticiones en reserva objetivo. Texto: «2», «1-2». */
+  rirTarget: string | null;
+  /** Se muestra como «Observaciones». */
   notes: string | null;
 }
 
@@ -161,6 +166,21 @@ export interface ItemCheck {
   sessionId: string;
   itemId: string;
   checkedAt: ISODateTime;
+}
+
+/** Registro real de una serie («¿Cómo te fue?»). Opcional: el check se puede marcar sin registro. */
+export interface SetLog {
+  sessionId: string;
+  itemId: string;
+  /** 1, 2, 3… */
+  setNumber: number;
+  reps: string | null;
+  load: string | null;
+  /** RPE real, 1 a 10. */
+  rpe: number | null;
+  /** Comentario del cliente (se guarda en la serie 1). */
+  note: string | null;
+  createdAt: ISODateTime;
 }
 
 export interface ExerciseView {

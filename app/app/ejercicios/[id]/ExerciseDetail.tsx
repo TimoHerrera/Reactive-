@@ -37,6 +37,8 @@ function SeriesCard({ located }: { located: LocatedItem }) {
     item.sets || item.reps ? { value: item.sets && item.reps ? `${item.sets} × ${item.reps}` : (item.reps ?? `${item.sets}`), label: "Series × reps" } : null,
     item.load ? { value: item.load, label: "Carga" } : null,
     item.rest ? { value: item.rest, label: "Descanso" } : null,
+    item.rpeTarget ? { value: item.rpeTarget, label: "RPE objetivo" } : null,
+    item.rirTarget ? { value: item.rirTarget, label: "RIR objetivo" } : null,
     item.tempo ? { value: item.tempo, label: "Tempo" } : null,
   ].filter(Boolean) as { value: string; label: string }[];
 
@@ -56,7 +58,7 @@ function SeriesCard({ located }: { located: LocatedItem }) {
       </dl>
       {item.notes && (
         <p className="mt-3 text-small text-title">
-          <strong className="text-ink">Profe:</strong> {item.notes}
+          <strong className="text-ink">Observaciones:</strong> {item.notes}
         </p>
       )}
     </section>

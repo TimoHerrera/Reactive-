@@ -40,6 +40,8 @@ export function importToDraft(
             load: r.load,
             rest: r.rest,
             tempo: "",
+            rpeTarget: r.rpe,
+            rirTarget: r.rir,
             notes: r.notes,
           };
         }),

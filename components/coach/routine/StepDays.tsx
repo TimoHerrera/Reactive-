@@ -19,6 +19,7 @@ import { PillButton } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import { BLOCK_NAMES, data, hasVideo, type Exercise } from "@/lib/data";
 import { normalizeText } from "@/lib/text";
+import { parseRir, parseRpe } from "@/lib/routine/effort";
 import {
   addBlock,
   addDay,
@@ -59,22 +60,31 @@ function SmallField({
   onChange,
   numeric,
   placeholder,
+  invalid,
+  title,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   numeric?: boolean;
   placeholder?: string;
+  /** Valor con formato inválido (se guarda igual, pero se marca). */
+  invalid?: boolean;
+  title?: string;
 }) {
   return (
-    <label className="block min-w-0">
+    <label className="block min-w-0" title={title}>
       <span className="label block text-[0.625rem]">{label}</span>
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
         inputMode={numeric ? "numeric" : undefined}
         placeholder={placeholder}
-        className="mt-1 h-11 w-full rounded-sm border border-line bg-bg px-2 text-body font-semibold text-ink outline-none placeholder:font-normal placeholder:text-muted/60 focus:border-accent"
+        aria-invalid={invalid || undefined}
+        className={cn(
+          "mt-1 h-11 w-full rounded-sm border bg-bg px-2 text-body font-semibold text-ink outline-none placeholder:font-normal placeholder:text-muted/60 focus:border-accent",
+          invalid ? "border-danger" : "border-line",
+        )}
       />
     </label>
   );
@@ -160,18 +170,34 @@ function SortableItem({
             <SmallField label="Carga" value={item.load} onChange={(v) => onChange({ load: v })} placeholder="16 kg" />
             <SmallField label="Desc." value={item.rest} onChange={(v) => onChange({ rest: v })} placeholder="90 s" />
           </div>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-3 gap-2">
+            <SmallField
+              label="RPE"
+              value={item.rpeTarget}
+              onChange={(v) => onChange({ rpeTarget: v })}
+              placeholder="7-8"
+              invalid={!!item.rpeTarget.trim() && !parseRpe(item.rpeTarget)}
+              title="RPE objetivo: 1 a 10, o un rango (7-8)"
+            />
+            <SmallField
+              label="RIR"
+              value={item.rirTarget}
+              onChange={(v) => onChange({ rirTarget: v })}
+              placeholder="2"
+              invalid={!!item.rirTarget.trim() && !parseRir(item.rirTarget)}
+              title="Repeticiones en reserva: 0 a 10, o un rango (1-2)"
+            />
             <SmallField label="Tempo" value={item.tempo} onChange={(v) => onChange({ tempo: v })} placeholder="3-1-1" />
-            <label className="col-span-3 block">
-              <span className="label block text-[0.625rem]">Nota para el cliente</span>
-              <input
-                value={item.notes}
-                onChange={(e) => onChange({ notes: e.target.value })}
-                placeholder="Ej.: espalda neutra, bajá hasta debajo de la rodilla"
-                className="mt-1 h-11 w-full rounded-sm border border-line bg-bg px-2 text-small text-ink outline-none placeholder:text-muted/60 focus:border-accent"
-              />
-            </label>
           </div>
+          <label className="block">
+            <span className="label block text-[0.625rem]">Observaciones</span>
+            <input
+              value={item.notes}
+              onChange={(e) => onChange({ notes: e.target.value })}
+              placeholder="Ej.: espalda neutra, bajá hasta debajo de la rodilla"
+              className="mt-1 h-11 w-full rounded-sm border border-line bg-bg px-2 text-small text-ink outline-none placeholder:text-muted/60 focus:border-accent"
+            />
+          </label>
           <div className="flex justify-between">
             <button type="button" onClick={onRemove} className="h-11 px-1 text-small font-semibold text-danger-ink">
               Quitar

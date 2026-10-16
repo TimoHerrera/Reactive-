@@ -3,6 +3,7 @@
 import { addDays, todayISO } from "@/lib/dates";
 import type { Exercise, RoutineItem, RoutineTree } from "@/lib/data/types";
 import { hasVideo } from "@/lib/data/types";
+import { normalizeRir, normalizeRpe } from "./effort";
 
 export type DraftItem = {
   key: string;
@@ -15,6 +16,8 @@ export type DraftItem = {
   load: string;
   rest: string;
   tempo: string;
+  rpeTarget: string;
+  rirTarget: string;
   notes: string;
 };
 
@@ -150,6 +153,8 @@ export function blankItem(exercise: Pick<Exercise, "id" | "name"> | null, rawNam
     load: "",
     rest: "",
     tempo: "",
+    rpeTarget: "",
+    rirTarget: "",
     notes: "",
   };
 }
@@ -286,6 +291,8 @@ export function draftToTree(
                   load: nn(it.load),
                   rest: nn(it.rest),
                   tempo: nn(it.tempo),
+                  rpeTarget: nn(normalizeRpe(it.rpeTarget)),
+                  rirTarget: nn(normalizeRir(it.rirTarget)),
                   notes: nn(it.notes),
                 }),
               ),
@@ -333,6 +340,8 @@ export function treeToDraft(t: RoutineTree, mode: "edit" | "duplicate" | "templa
           load: it.load ?? "",
           rest: it.rest ?? "",
           tempo: it.tempo ?? "",
+          rpeTarget: it.rpeTarget ?? "",
+          rirTarget: it.rirTarget ?? "",
           notes: it.notes ?? "",
         })),
       })),
@@ -343,7 +352,7 @@ export function treeToDraft(t: RoutineTree, mode: "edit" | "duplicate" | "templa
 /** «3 × 8 c/lado» para la card colapsada. */
 export function itemSummary(it: DraftItem): string {
   const sr = it.sets && it.reps ? `${it.sets} × ${it.reps}` : it.reps || (it.sets ? `${it.sets} series` : "");
-  return [sr, it.load].filter(Boolean).join(" · ");
+  return [sr, it.load, it.rpeTarget && `RPE ${it.rpeTarget}`, it.rirTarget && `RIR ${it.rirTarget}`].filter(Boolean).join(" · ");
 }
 
 /**

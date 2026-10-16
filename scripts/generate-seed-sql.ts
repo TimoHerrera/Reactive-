@@ -89,7 +89,7 @@ for (const b of db.routineBlocks) {
   push(`insert into public.routine_blocks (id, day_id, name, position) values (${q(b.id)}, ${q(b.dayId)}, ${q(b.name)}, ${b.position}) on conflict (id) do nothing;`);
 }
 for (const i of db.routineItems) {
-  push(`insert into public.routine_items (id, block_id, exercise_id, raw_name, position, sets, reps, load, rest, tempo, notes) values (${q(i.id)}, ${q(i.blockId)}, ${q(i.exerciseId)}, ${q(i.rawName)}, ${i.position}, ${num(i.sets)}, ${q(i.reps)}, ${q(i.load)}, ${q(i.rest)}, ${q(i.tempo)}, ${q(i.notes)}) on conflict (id) do nothing;`);
+  push(`insert into public.routine_items (id, block_id, exercise_id, raw_name, position, sets, reps, load, rest, tempo, rpe_target, rir_target, notes) values (${q(i.id)}, ${q(i.blockId)}, ${q(i.exerciseId)}, ${q(i.rawName)}, ${i.position}, ${num(i.sets)}, ${q(i.reps)}, ${q(i.load)}, ${q(i.rest)}, ${q(i.tempo)}, ${q(i.rpeTarget)}, ${q(i.rirTarget)}, ${q(i.notes)}) on conflict (id) do nothing;`);
 }
 
 push("\n-- ── Actividad ───────────────────────────────────────────────────");
@@ -98,6 +98,9 @@ for (const s of db.workoutSessions) {
 }
 for (const c of db.itemChecks) {
   push(`insert into public.item_checks (session_id, item_id, checked_at) values (${q(c.sessionId)}, ${q(c.itemId)}, ${ts(c.checkedAt)}) on conflict do nothing;`);
+}
+for (const l of db.setLogs) {
+  push(`insert into public.set_logs (session_id, item_id, set_number, reps, load, rpe, note, created_at) values (${q(l.sessionId)}, ${q(l.itemId)}, ${l.setNumber}, ${q(l.reps)}, ${q(l.load)}, ${num(l.rpe)}, ${q(l.note)}, ${ts(l.createdAt)}) on conflict do nothing;`);
 }
 for (const v of db.exerciseViews) {
   push(`insert into public.exercise_views (client_id, exercise_id, viewed_at) values (${q(v.clientId)}, ${q(v.exerciseId)}, ${ts(v.viewedAt)});`);
