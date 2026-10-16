@@ -21,6 +21,9 @@ import { emitSessionRevoked } from "@/lib/auth/session-events";
 import { DuplicateEmailError, type ExistingUser } from "../errors";
 import type { DataSource, SetLogInput } from "../repositories";
 import { cleanSetLogs } from "@/lib/routine/setlogs";
+import { applyPatch, buildAppointments } from "@/lib/agenda/series";
+import { addDays } from "@/lib/dates";
+import { baStartOfDay } from "@/lib/agenda/time";
 
 /** Errores de server actions → excepción (con «Ver ficha» si el email ya existe). */
 function fail(res: { error: string; existing?: ExistingUser | null }): never {
@@ -33,6 +36,7 @@ import type {
   CoachNote,
   Exercise,
   ExerciseView,
+  Appointment,
   ItemCheck,
   SetLog,
   Profile,
@@ -184,6 +188,48 @@ const toSetLog = (r: Row): SetLog => ({
 });
 
 const fromSetLog = (l: SetLogInput): Row => ({ set_number: l.setNumber, reps: l.reps, load: l.load, rpe: l.rpe, note: l.note });
+
+const toAppointment = (r: Row): Appointment => ({
+  id: r.id as string,
+  clientId: r.client_id as string,
+  coachId: r.coach_id as string,
+  startsAt: r.starts_at as string,
+  durationMin: r.duration_min as number,
+  type: r.type as Appointment["type"],
+  status: r.status as Appointment["status"],
+  notes: (r.notes as string) ?? null,
+  seriesId: (r.series_id as string) ?? null,
+  createdBy: (r.created_by as string) ?? null,
+  createdAt: r.created_at as string,
+  rescheduleReason: (r.reschedule_reason as string) ?? null,
+  reschedulePreference: (r.reschedule_preference as string) ?? null,
+  rescheduleRequestedAt: (r.reschedule_requested_at as string) ?? null,
+});
+
+const fromAppointment = (a: Appointment): Row => ({
+  id: a.id,
+  client_id: a.clientId,
+  coach_id: a.coachId,
+  starts_at: a.startsAt,
+  duration_min: a.durationMin,
+  type: a.type,
+  status: a.status,
+  notes: a.notes,
+  series_id: a.seriesId,
+  reschedule_reason: a.rescheduleReason,
+  reschedule_preference: a.reschedulePreference,
+  reschedule_requested_at: a.rescheduleRequestedAt,
+});
+
+const newId = () => crypto.randomUUID();
+
+/** El turno y, si es de una serie, el resto de la serie (para «este y los siguientes»). */
+async function withSeries(id: string): Promise<Appointment[]> {
+  const row = check(await sb().from("appointments").select("*").eq("id", id).maybeSingle()) as Row | null;
+  if (!row) throw new Error("Turno no encontrado");
+  if (!row.series_id) return [toAppointment(row)];
+  return (check(await sb().from("appointments").select("*").eq("series_id", row.series_id as string)) as Row[]).map(toAppointment);
+}
 
 const ROUTINE_TREE_SELECT =
   "*, routine_days(*, routine_blocks(*, routine_items(*)))";
@@ -620,6 +666,51 @@ export const supabaseDataSource: DataSource = {
     },
     async remove(path) {
       check(await sb().storage.from(VIDEO_BUCKET).remove([path]));
+    },
+  },
+
+  appointments: {
+    async list(filter = {}) {
+      let q = sb().from("appointments").select("*").order("starts_at");
+      if (filter.clientId) q = q.eq("client_id", filter.clientId);
+      if (filter.from) q = q.gte("starts_at", baStartOfDay(filter.from));
+      if (filter.to) q = q.lt("starts_at", baStartOfDay(addDays(filter.to, 1)));
+      return (check(await q) as Row[]).map(toAppointment);
+    },
+    async create(input, repeat) {
+      const me = await sessionUser();
+      if (!me) throw new Error("Iniciá sesión de nuevo.");
+      // El profe agenda a su nombre (lo refuerza un trigger); el admin elige el profe.
+      const rows = buildAppointments({ ...input, coachId: me.role === "admin" ? input.coachId : me.id }, repeat ?? null, {
+        newId,
+        createdBy: me.id,
+        now: new Date().toISOString(),
+      });
+      const saved = check(await sb().from("appointments").insert(rows.map(fromAppointment)).select()) as Row[];
+      return saved.map(toAppointment);
+    },
+    async update(id, patch, scope = "this") {
+      const changed = applyPatch(await withSeries(id), id, patch, scope);
+      const saved = await Promise.all(
+        changed.map(async (a) => {
+          // id y paciente no cambian; el resto se reescribe (el trigger protege el profe).
+          const row = fromAppointment(a);
+          delete row.id;
+          delete row.client_id;
+          return toAppointment(check(await sb().from("appointments").update(row).eq("id", a.id).select().single()) as Row);
+        }),
+      );
+      return saved;
+    },
+    async remove(id, scope = "this") {
+      const all = await withSeries(id);
+      const target = all.find((a) => a.id === id)!;
+      const ids = scope === "following" && target.seriesId ? all.filter((a) => a.startsAt >= target.startsAt).map((a) => a.id) : [id];
+      check(await sb().from("appointments").delete().in("id", ids));
+    },
+    async requestReschedule(id, input) {
+      const row = check(await sb().rpc("request_reschedule", { p_id: id, p_reason: input.reason, p_preference: input.preference }).single());
+      return toAppointment(row as Row);
     },
   },
 };

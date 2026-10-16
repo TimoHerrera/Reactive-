@@ -69,6 +69,9 @@ export async function deleteUser(profileId: string, opts: { confirmName: string;
       if (!target) return { ok: false, error: `Primero reasigná sus ${count} clientes a otro profe.` };
       await admin.from("profiles").update({ coach_id: target }).eq("role", "client").eq("coach_id", p.id);
     }
+    // Sus turnos pasan a quien hereda sus pacientes (o al admin, si no tenía pacientes propios).
+    const heir = opts.reassignTo && opts.reassignTo !== p.id ? await activeStaffId(opts.reassignTo) : null;
+    await admin.from("appointments").update({ coach_id: heir ?? caller.id }).eq("coach_id", p.id);
     // Lo que creó para todos pasa al admin; en el resto queda en null (on delete set null).
     await admin.from("exercises").update({ created_by: caller.id }).eq("created_by", p.id);
     await admin.from("routines").update({ created_by: caller.id }).eq("created_by", p.id).or("is_template.eq.true,client_id.is.null");

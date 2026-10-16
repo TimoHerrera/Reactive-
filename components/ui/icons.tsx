@@ -84,3 +84,9 @@ export const IconArrowLeft = (p: IconProps) => (
     <path d="M19 12H5M11 6l-6 6 6 6" />
   </Base>
 );
+export const IconCalendar = (p: IconProps) => (
+  <Base {...p}>
+    <rect x="3.5" y="5" width="17" height="15.5" rx="2" />
+    <path d="M3.5 10h17M8 3v4M16 3v4" />
+  </Base>
+);

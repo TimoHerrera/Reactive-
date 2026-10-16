@@ -97,7 +97,7 @@ npx supabase link --project-ref <ref-del-proyecto>
 npx supabase db push
 ```
 
-Opción B, a mano: en **SQL Editor**, pegá y ejecutá en orden los archivos de `supabase/migrations/` (`0001_schema.sql` → `0009_planificador.sql`).
+Opción B, a mano: en **SQL Editor**, pegá y ejecutá en orden los archivos de `supabase/migrations/` (`0001_schema.sql` → `0010_agenda.sql`).
 
 ### 3. Datos de demo (opcional, SOLO staging)
 
@@ -133,6 +133,17 @@ Desde ahí el admin suma el resto del equipo en **Equipo**, y los profes invitan
 - **Registro real**: al marcar un ejercicio se abre «¿Cómo te fue?» (opcional): una fila por serie con reps y carga planificadas (editables), RPE real 1–10 y un comentario. «Saltear» lo marca igual. Desmarcar es directo. Tabla `set_logs` (PK `session_id, item_id, set_number`); el comentario va en la serie 1.
 - Profe: pestaña **Registro** en la ficha del cliente (planificado vs. hecho, por sesión) con aviso **RPE ↑** si el RPE real supera al tope del objetivo por 2 o más. En Actividad reciente: «Martina marcó RPE 9 en Sentadilla goblet (objetivo 7)».
 - RLS (`0009_planificador.sql`): escribe solo el cliente dueño de la sesión (RPC `save_set_logs`, atómico); leen él, su profe y el admin.
+
+## Agenda de turnos (F9)
+
+- Los carga el profe en **Agenda** (tab bar: Panel · Agenda · Clientes · Rutinas · Ejercicios). Vista **Día** (lista por horario) y **Semana**, con ‹ › y «Hoy». El admin filtra por profe.
+- **+ Turno**: paciente, fecha, hora, duración, tipo (Kinesiología / Entrenamiento / Evaluación funcional / Sport Recovery / MEP Sport) y nota. **Repetir**: días de la semana + cantidad de semanas o fecha de fin (tope 120 turnos; comparten `series_id`). Al editar uno recurrente: «Solo este» o «Este y los siguientes».
+- Aviso (no bloquea) si se superpone con otro turno del mismo profe. Estados: agendado / reprogramación pedida / cancelado / asistió / ausente.
+- Panel: «Hoy: N turnos» con el próximo y alerta de reprogramaciones pedidas. Ficha del cliente: pestaña **Turnos** (próximos + historial con asistencias y ausencias).
+- Paciente: en Hoy, «Próximo turno» con **Pedir reprogramar** (motivo + franja; pasa a «reprogramación pedida» y aparece en el Panel y la Agenda del profe) y **Agregar a mi calendario** (.ics). En Perfil, sus próximos turnos.
+- **WhatsApp**: «Turnos de mañana» con un botón por paciente; el mensaje se puede editar antes de abrir `wa.me/549…` (teléfonos normalizados en `lib/phone.ts`).
+- Horarios en **America/Argentina/Buenos_Aires** (UTC−3 fijo, `lib/agenda/time.ts`), sin importar la zona del navegador.
+- RLS (`0010_agenda.sql`): el profe ve y edita los turnos de sus pacientes (`can_manage_client`), el admin todos; un trigger hace que el profe agende siempre a su nombre. El paciente solo lee los suyos y pide reprogramar con la RPC `request_reschedule`.
 
 ## Primera vez / pedir acceso
 
@@ -211,5 +222,5 @@ El reporte HTML queda en `playwright-report/` (`npx playwright show-report`).
 - [x] **F6**: Panel, Clientes (ficha, alta, edición), Profes, «Primera vez / pedir acceso» y pulido
 - [x] **F7**: E2E con Playwright (flujo clave, pedir acceso, cambio de usuario, equipo), gestión del equipo (Equipo, perfil del profe, `create-admin`, RLS de desactivados) y deploy en Vercel
 - [x] **F8**: planificador con RPE/RIR objetivo, registro real por serie («¿Cómo te fue?») y pestaña Registro del profe
-- [ ] **F9**: agenda de turnos
+- [x] **F9**: agenda de turnos (Día/Semana, recurrentes, superposición, reprogramación, .ics y recordatorios por WhatsApp)
 - [ ] **F10**: pagos y recordatorios de cobro

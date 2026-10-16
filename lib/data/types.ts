@@ -241,3 +241,44 @@ export interface AccessRequest {
 
 /** Profe que se puede elegir en el formulario público (solo datos públicos). */
 export type PublicCoach = { id: string; fullName: string; title: string | null };
+
+// ── Agenda de turnos (F9) ───────────────────────────────────────────
+
+export type AppointmentType = "kinesiologia" | "entrenamiento" | "evaluacion_funcional" | "sport_recovery" | "mep_sport";
+export type AppointmentStatus = "agendado" | "reprogramacion_pedida" | "cancelado" | "asistio" | "ausente";
+
+export const APPOINTMENT_TYPE_LABEL: Record<AppointmentType, string> = {
+  kinesiologia: "Kinesiología",
+  entrenamiento: "Entrenamiento",
+  evaluacion_funcional: "Evaluación funcional",
+  sport_recovery: "Sport Recovery",
+  mep_sport: "MEP Sport",
+};
+
+export const APPOINTMENT_STATUS_LABEL: Record<AppointmentStatus, string> = {
+  agendado: "Agendado",
+  reprogramacion_pedida: "Reprogramación pedida",
+  cancelado: "Cancelado",
+  asistio: "Asistió",
+  ausente: "Ausente",
+};
+
+export interface Appointment {
+  id: string;
+  clientId: string;
+  /** Profe que atiende el turno. */
+  coachId: string;
+  startsAt: ISODateTime;
+  durationMin: number;
+  type: AppointmentType;
+  status: AppointmentStatus;
+  notes: string | null;
+  /** Turnos creados juntos con «Repetir» comparten serie. */
+  seriesId: string | null;
+  createdBy: string | null;
+  createdAt: ISODateTime;
+  /** Pedido de reprogramación del paciente. */
+  rescheduleReason: string | null;
+  reschedulePreference: string | null;
+  rescheduleRequestedAt: ISODateTime | null;
+}

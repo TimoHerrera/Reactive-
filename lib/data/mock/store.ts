@@ -21,6 +21,7 @@ function load(): Db {
       saved.accessRequests ??= seed.accessRequests;
       saved.activations ??= [];
       saved.setLogs ??= seed.setLogs;
+      saved.appointments ??= seed.appointments;
       saved.inviteCodes ??= [];
       for (const r of saved.accessRequests) if (r.linkedProfileId === undefined) r.linkedProfileId = null;
       for (const r of saved.routines) {
