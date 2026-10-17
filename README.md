@@ -97,7 +97,7 @@ npx supabase link --project-ref <ref-del-proyecto>
 npx supabase db push
 ```
 
-Opción B, a mano: en **SQL Editor**, pegá y ejecutá en orden los archivos de `supabase/migrations/` (`0001_schema.sql` → `0011_pagos.sql`).
+Opción B, a mano: en **SQL Editor**, pegá y ejecutá en orden los archivos de `supabase/migrations/` (`0001_schema.sql` → `0012_avisos.sql`).
 
 ### 3. Datos de demo (opcional, SOLO staging)
 
@@ -157,6 +157,20 @@ Desde ahí el admin suma el resto del equipo en **Equipo**, y los profes invitan
 - **Paciente** (solo si está activado): en Perfil, «Tu cuota: al día» o cuándo vence, con el alias. Nunca ve datos de otros.
 - RLS (`0011_pagos.sql`): el profe ve y registra los pagos de sus pacientes, el admin todos; el paciente solo lee su plan y sus pagos si el ajuste está activado. Sin pagos online por ahora (Mercado Pago queda para más adelante).
 
+## Avisos del profe (F11)
+
+- **Mis avisos** (`/coach/avisos/configurar`, también en el menú del avatar): cada profe elige los suyos.
+  - **Cuota por vencer** (mensual): avisar **N días antes** del vencimiento (1–60).
+  - **Venció y no pagó** (mensual, pack o por sesión): a los **N días** de vencido (0 = el mismo día) y, si quiere, **repetir cada M días** mientras siga sin pagar.
+  - **Pack por terminarse**: cuando queden **N sesiones o menos** (0 = cuando se termina).
+  - **Pedidos de reprogramación** de turnos.
+  - **Admin**: avisos de todo el centro o solo de sus pacientes. Un profe recibe siempre solo los suyos.
+  - Vista previa: «Con esta configuración, hoy tendrías N avisos».
+- **Campanita** en el Panel con los avisos nuevos → **Avisos** (`/coach/avisos`): nuevos y vistos; tocar uno lo marca como visto y lleva a la ficha (pestaña Pagos) o a la Agenda; «Marcar todos como vistos».
+- Los avisos no se guardan: se calculan con el estado de cobro y los turnos (`lib/notify/alerts.ts`). Cada uno tiene una clave estable (mismo vencimiento, misma repetición), así lo visto no vuelve a aparecer como nuevo y cada repetición sí.
+- **También por mail** (opcional, por profe): `/api/cron/avisos` corre todos los días a las 9:00 (Vercel Cron, `vercel.json`) y le manda a cada profe un resumen con los avisos que todavía no vio ni le llegaron. Necesita `NEXT_PUBLIC_DATA_SOURCE=supabase`, `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`, `RESEND_API_KEY` y `AVISOS_FROM` (remitente de un dominio verificado en Resend). En modo demo no se mandan mails.
+- RLS (`0012_avisos.sql`): cada profe lee y cambia solo sus preferencias y sus avisos vistos; «todo el centro» se fuerza a «solo mis pacientes» si no es admin.
+
 ## Primera vez / pedir acceso
 
 - En el login, «¿Primera vez? Pedile tu acceso a tu profe» lleva a `/solicitar-acceso`: nombre, email, WhatsApp, profe, tipo de caso y mensaje.
@@ -212,6 +226,7 @@ Cubren:
 - **Equipo:** el admin invita a un profe → el profe activa su cuenta con el link → ve el Panel; activación con código; un profe no puede entrar a «Equipo».
 - **Cámara** (`e2e/camara.spec.ts`): con el permiso dado graba, revisa y usa el video; sin permiso muestra «Habilitar cámara»; bloqueada explica cómo habilitarla. Usa el Chrome instalado (perfil temporal y cámara simulada), porque el Chromium liviano de Playwright no tiene cámara.
 - **Dos profes:** Nico carga una rutina → la clienta ve «Cargada por Nico R.»; Jano (nuevo) no ve los clientes de Nico ni los abre por URL, pero usa ejercicios y plantillas; el admin ve a todos y filtra por profe.
+- **Pagos** y **Avisos:** cobros, registrar un pago, WhatsApp de cobro; avisos de fábrica, marcar como vistos, cambiar los días y que se guarde por profe.
 - **Usuarios:** email repetido (con otras mayúsculas) no se crea y ofrece «Ver ficha»; el profe desactiva a su cliente (no entra, se oculta, filtro «Desactivados», «Reactivar»); el admin elimina un cliente escribiendo su nombre y restablece la demo; el profe elimina a su propio cliente y Caro no ve ni puede borrar a los de Nico; eliminar a un profe con clientes exige reasignarlos.
 
 El reporte HTML queda en `playwright-report/` (`npx playwright show-report`).
@@ -236,3 +251,4 @@ El reporte HTML queda en `playwright-report/` (`npx playwright show-report`).
 - [x] **F8**: planificador con RPE/RIR objetivo, registro real por serie («¿Cómo te fue?») y pestaña Registro del profe
 - [x] **F9**: agenda de turnos (Día/Semana, recurrentes, superposición, reprogramación, .ics y recordatorios por WhatsApp)
 - [x] **F10**: pagos y recordatorios de cobro (planes, estados, packs, WhatsApp, ajustes, resumen y exportación)
+- [x] **F11**: avisos del profe configurables (N días antes, N días después y cada M, pack con N sesiones, reprogramaciones), campanita y mail diario opcional

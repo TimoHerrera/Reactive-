@@ -10,6 +10,7 @@ import type {
   SetLog,
   Appointment,
   AppSettings,
+  NotificationPrefs,
   ClientPlan,
   Payment,
   Profile,
@@ -63,6 +64,9 @@ export interface Db {
   clientPlans: ClientPlan[];
   payments: Payment[];
   settings: AppSettings;
+  /** Avisos (F11): preferencias por profe y claves ya vistas. */
+  notificationPrefs: (NotificationPrefs & { userId: string })[];
+  notificationSeen: { userId: string; key: string; seenAt: string }[];
   exerciseViews: ExerciseView[];
   accessRequests: (AccessRequest & { ipHash?: string | null })[];
   /** Solo mock: invitaciones simuladas (token → usuario). */
@@ -976,6 +980,8 @@ export function buildSeed(today: string = todayISO(), now: Date = new Date()): D
     clientPlans,
     payments,
     settings,
+    notificationPrefs: [],
+    notificationSeen: [],
     exerciseViews,
     accessRequests,
     activations: [],
