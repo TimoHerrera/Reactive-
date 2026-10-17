@@ -3,7 +3,17 @@ import { encodeMockSession, MOCK_SESSION_COOKIE } from "@/lib/auth/cookies";
 import { emitSessionChange, emitSessionRevoked } from "@/lib/auth/session-events";
 import type { DataSource } from "../repositories";
 import { DEMO_PASSWORD } from "../seed";
-import { accountStatus, isStaff, type AccessRequest, type Profile, type Routine, type RoutineTree, type SessionUser } from "../types";
+import {
+  accountStatus,
+  isStaff,
+  type AccessRequest,
+  type ClientPlan,
+  type Payment,
+  type Profile,
+  type Routine,
+  type RoutineTree,
+  type SessionUser,
+} from "../types";
 import {
   canDeleteUser,
   canEditRoutine,
@@ -39,6 +49,7 @@ import { cleanSetLogs } from "@/lib/routine/setlogs";
 import { byStart } from "@/lib/agenda/agenda";
 import { applyPatch, buildAppointments, canRequestReschedule, requestReschedule, validateAppointment } from "@/lib/agenda/series";
 import { baDate } from "@/lib/agenda/time";
+import { validatePayment, validatePlan } from "@/lib/billing/validate";
 import { delay, getDb, mutate, resetMockDb, uuid } from "./store";
 import { mockVideos } from "./videos";
 
@@ -111,6 +122,9 @@ const profileById = (db: MockDb, id: string | null | undefined) => (id ? db.prof
 const ownerOf = (db: MockDb, r: Routine) => profileById(db, r.clientId);
 const seesClient = (db: MockDb, v: Viewer, clientId: string) => canSeeClient(v, profileById(db, clientId));
 const seesRoutine = (db: MockDb, v: Viewer, r: Routine) => canSeeRoutine(v, r, ownerOf(db, r));
+/** Pagos: profe → sus pacientes; admin → todos; paciente → lo suyo, solo si el admin lo activó en Ajustes. */
+const seesBilling = (db: MockDb, v: Viewer, clientId: string) =>
+  v?.role === "client" ? v.id === clientId && db.settings.showBillingToClient : seesClient(db, v, clientId);
 function requireRoutineEdit(db: MockDb, v: Viewer, r: Routine) {
   if (!canEditRoutine(v, r, ownerOf(db, r))) throw new Error("No tenés acceso a esta rutina.");
 }
@@ -146,6 +160,8 @@ function purgeUser(db: MockDb, p: Profile, adminId: string, reassignTo: string |
     db.itemChecks = db.itemChecks.filter((c) => !sessionIds.has(c.sessionId));
     db.setLogs = db.setLogs.filter((l) => !sessionIds.has(l.sessionId));
     db.appointments = db.appointments.filter((x) => x.clientId !== p.id);
+    db.clientPlans = db.clientPlans.filter((x) => x.clientId !== p.id);
+    db.payments = db.payments.filter((x) => x.clientId !== p.id);
     db.workoutSessions = db.workoutSessions.filter((s) => !sessionIds.has(s.id));
     db.exerciseViews = db.exerciseViews.filter((v) => v.clientId !== p.id);
     db.coachNotes = db.coachNotes.filter((n) => n.clientId !== p.id);
@@ -726,6 +742,74 @@ export const mockDataSource: DataSource = {
           if (!canRequestReschedule(db.appointments[i]!)) throw new Error("Ese turno ya no se puede reprogramar.");
           db.appointments[i] = requestReschedule(db.appointments[i]!, input, now());
           return db.appointments[i]!;
+        }),
+      );
+    },
+  },
+
+  billing: {
+    async listPlans() {
+      const me = currentUser();
+      const db = getDb();
+      return delay(db.clientPlans.filter((p) => seesBilling(db, me, p.clientId)));
+    },
+    async setPlan(clientId, input) {
+      const me = requireStaff();
+      return delay(
+        mutate((db) => {
+          if (!seesClient(db, me, clientId)) throw new Error("Ese paciente lo atiende otro profe.");
+          const error = validatePlan(input);
+          if (error) throw new Error(error);
+          const next: ClientPlan = { clientId, ...input, updatedAt: now() };
+          db.clientPlans = [...db.clientPlans.filter((p) => p.clientId !== clientId), next];
+          return next;
+        }),
+      );
+    },
+    async listPayments(filter = {}) {
+      const me = currentUser();
+      const db = getDb();
+      return delay(
+        db.payments
+          .filter((p) => seesBilling(db, me, p.clientId) && (!filter.clientId || p.clientId === filter.clientId))
+          .sort((a, b) => b.paidAt.localeCompare(a.paidAt) || b.createdAt.localeCompare(a.createdAt)),
+      );
+    },
+    async addPayment(input) {
+      const me = requireStaff();
+      return delay(
+        mutate((db) => {
+          if (!seesClient(db, me, input.clientId)) throw new Error("Ese paciente lo atiende otro profe.");
+          const error = validatePayment(input);
+          if (error) throw new Error(error);
+          const p: Payment = { ...input, note: input.note?.trim() || null, id: uuid(), registeredBy: me.id, createdAt: now() };
+          db.payments.push(p);
+          return p;
+        }),
+      );
+    },
+    async removePayment(id) {
+      const me = requireStaff();
+      mutate((db) => {
+        const p = db.payments.find((x) => x.id === id);
+        if (!p || !seesClient(db, me, p.clientId)) notFound("Pago");
+        db.payments = db.payments.filter((x) => x.id !== id);
+      });
+      await delay(undefined);
+    },
+  },
+
+  settings: {
+    async get() {
+      return delay(getDb().settings);
+    },
+    async update(patch) {
+      const me = currentUser();
+      if (me?.role !== "admin") throw new Error("Solo el admin cambia los ajustes.");
+      return delay(
+        mutate((db) => {
+          db.settings = { ...db.settings, ...patch, transferAlias: (patch.transferAlias ?? db.settings.transferAlias).trim(), updatedAt: now() };
+          return db.settings;
         }),
       );
     },

@@ -24,6 +24,9 @@ import { cleanSetLogs } from "@/lib/routine/setlogs";
 import { applyPatch, buildAppointments } from "@/lib/agenda/series";
 import { addDays } from "@/lib/dates";
 import { baStartOfDay } from "@/lib/agenda/time";
+import { DEFAULT_APPOINTMENT_TEMPLATE } from "@/lib/agenda/agenda";
+import { DEFAULT_PAYMENT_TEMPLATE } from "@/lib/billing/status";
+import { validatePayment, validatePlan } from "@/lib/billing/validate";
 
 /** Errores de server actions → excepción (con «Ver ficha» si el email ya existe). */
 function fail(res: { error: string; existing?: ExistingUser | null }): never {
@@ -37,7 +40,10 @@ import type {
   Exercise,
   ExerciseView,
   Appointment,
+  AppSettings,
+  ClientPlan,
   ItemCheck,
+  Payment,
   SetLog,
   Profile,
   Routine,
@@ -222,6 +228,38 @@ const fromAppointment = (a: Appointment): Row => ({
 });
 
 const newId = () => crypto.randomUUID();
+
+const toPlan = (r: Row): ClientPlan => ({
+  clientId: r.client_id as string,
+  kind: r.kind as ClientPlan["kind"],
+  amountCents: Number(r.amount_cents),
+  dueDay: (r.due_day as number) ?? null,
+  packSessions: (r.pack_sessions as number) ?? null,
+  startsOn: r.starts_on as string,
+  active: !!r.active,
+  updatedAt: r.updated_at as string,
+});
+
+const toPayment = (r: Row): Payment => ({
+  id: r.id as string,
+  clientId: r.client_id as string,
+  amountCents: Number(r.amount_cents),
+  paidAt: r.paid_at as string,
+  method: r.method as Payment["method"],
+  period: (r.period as string) ?? null,
+  sessions: (r.sessions as number) ?? null,
+  note: (r.note as string) ?? null,
+  registeredBy: (r.registered_by as string) ?? null,
+  createdAt: r.created_at as string,
+});
+
+const toSettings = (r: Row | null): AppSettings => ({
+  transferAlias: (r?.transfer_alias as string) ?? "",
+  paymentTemplate: (r?.payment_template as string) ?? DEFAULT_PAYMENT_TEMPLATE,
+  appointmentTemplate: (r?.appointment_template as string) ?? DEFAULT_APPOINTMENT_TEMPLATE,
+  showBillingToClient: !!r?.show_billing_to_client,
+  updatedAt: (r?.updated_at as string) ?? null,
+});
 
 /** El turno y, si es de una serie, el resto de la serie (para «este y los siguientes»). */
 async function withSeries(id: string): Promise<Appointment[]> {
@@ -711,6 +749,75 @@ export const supabaseDataSource: DataSource = {
     async requestReschedule(id, input) {
       const row = check(await sb().rpc("request_reschedule", { p_id: id, p_reason: input.reason, p_preference: input.preference }).single());
       return toAppointment(row as Row);
+    },
+  },
+
+  billing: {
+    async listPlans() {
+      return (check(await sb().from("client_plans").select("*")) as Row[]).map(toPlan);
+    },
+    async setPlan(clientId, input) {
+      const error = validatePlan(input);
+      if (error) throw new Error(error);
+      const row = check(
+        await sb()
+          .from("client_plans")
+          .upsert({
+            client_id: clientId,
+            kind: input.kind,
+            amount_cents: input.amountCents,
+            due_day: input.kind === "mensual" ? input.dueDay : null,
+            pack_sessions: input.kind === "pack" ? input.packSessions : null,
+            starts_on: input.startsOn,
+            active: input.active,
+            updated_at: new Date().toISOString(),
+          })
+          .select()
+          .single(),
+      );
+      return toPlan(row as Row);
+    },
+    async listPayments(filter = {}) {
+      let q = sb().from("payments").select("*").order("paid_at", { ascending: false }).order("created_at", { ascending: false });
+      if (filter.clientId) q = q.eq("client_id", filter.clientId);
+      return (check(await q) as Row[]).map(toPayment);
+    },
+    async addPayment(input) {
+      const error = validatePayment(input);
+      if (error) throw new Error(error);
+      const row = check(
+        await sb()
+          .from("payments")
+          .insert({
+            client_id: input.clientId,
+            amount_cents: input.amountCents,
+            paid_at: input.paidAt,
+            method: input.method,
+            period: input.period,
+            sessions: input.sessions,
+            note: input.note?.trim() || null,
+          })
+          .select()
+          .single(),
+      );
+      return toPayment(row as Row);
+    },
+    async removePayment(id) {
+      check(await sb().from("payments").delete().eq("id", id));
+    },
+  },
+
+  settings: {
+    async get() {
+      return toSettings(check(await sb().from("app_settings").select("*").eq("id", true).maybeSingle()) as Row | null);
+    },
+    async update(patch) {
+      const row: Row = { id: true, updated_at: new Date().toISOString() };
+      if (patch.transferAlias !== undefined) row.transfer_alias = patch.transferAlias.trim();
+      if (patch.paymentTemplate !== undefined) row.payment_template = patch.paymentTemplate;
+      if (patch.appointmentTemplate !== undefined) row.appointment_template = patch.appointmentTemplate;
+      if (patch.showBillingToClient !== undefined) row.show_billing_to_client = patch.showBillingToClient;
+      return toSettings(check(await sb().from("app_settings").upsert(row).select().single()) as Row);
     },
   },
 };

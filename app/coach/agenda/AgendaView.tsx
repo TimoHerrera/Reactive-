@@ -48,14 +48,15 @@ export function AgendaView() {
   const q = useQuery(async () => {
     const from = monday < today ? monday : today;
     const to = addDays(monday, 6) > addDays(today, 1) ? addDays(monday, 6) : addDays(today, 1);
-    const [appointments, clients, staff, pending] = await Promise.all([
+    const [appointments, clients, staff, pending, settings] = await Promise.all([
       data.appointments.list({ from, to }),
       data.profiles.listClients(),
       data.profiles.listStaff(),
       data.appointments.list({ from: today }),
+      data.settings.get(),
     ]);
     const merged = new Map([...appointments, ...pending].map((a) => [a.id, a]));
-    return { appointments: [...merged.values()].sort(byStart), clients, staff };
+    return { appointments: [...merged.values()].sort(byStart), clients, staff, template: settings.appointmentTemplate };
   }, [monday, today]);
 
   const all = useMemo(
@@ -287,7 +288,7 @@ export function AgendaView() {
           title="Recordar turno"
           to={nameOf(wa.clientId)}
           phone={clientById.get(wa.clientId)?.phone ?? null}
-          initialText={appointmentReminderText(wa, { clientName: nameOf(wa.clientId), coachName: staffById.get(wa.coachId)?.fullName, today })}
+          initialText={appointmentReminderText(wa, { clientName: nameOf(wa.clientId), coachName: staffById.get(wa.coachId)?.fullName, today, template: q.data?.template })}
           onClose={() => setWa(null)}
         />
       )}

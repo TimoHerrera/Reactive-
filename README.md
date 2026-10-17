@@ -97,7 +97,7 @@ npx supabase link --project-ref <ref-del-proyecto>
 npx supabase db push
 ```
 
-Opción B, a mano: en **SQL Editor**, pegá y ejecutá en orden los archivos de `supabase/migrations/` (`0001_schema.sql` → `0010_agenda.sql`).
+Opción B, a mano: en **SQL Editor**, pegá y ejecutá en orden los archivos de `supabase/migrations/` (`0001_schema.sql` → `0011_pagos.sql`).
 
 ### 3. Datos de demo (opcional, SOLO staging)
 
@@ -144,6 +144,18 @@ Desde ahí el admin suma el resto del equipo en **Equipo**, y los profes invitan
 - **WhatsApp**: «Turnos de mañana» con un botón por paciente; el mensaje se puede editar antes de abrir `wa.me/549…` (teléfonos normalizados en `lib/phone.ts`).
 - Horarios en **America/Argentina/Buenos_Aires** (UTC−3 fijo, `lib/agenda/time.ts`), sin importar la zona del navegador.
 - RLS (`0010_agenda.sql`): el profe ve y edita los turnos de sus pacientes (`can_manage_client`), el admin todos; un trigger hace que el profe agende siempre a su nombre. El paciente solo lee los suyos y pide reprogramar con la RPC `request_reschedule`.
+
+## Pagos y recordatorios de cobro (F10)
+
+- **Plan por paciente** (`client_plans`): mensual (cuota + día de vencimiento), por sesión o pack de N sesiones; monto en ARS guardado en **centavos** (entero), fecha de inicio y activo.
+- **Pagos** (`payments`): monto, fecha, medio (efectivo / transferencia / Mercado Pago / otro), mes cubierto o cantidad de sesiones, nota y quién lo registró.
+- **Estado automático** (`lib/billing/status.ts`): Al día / Por vencer (5 días o menos) / Vencido (con días de atraso, desde el mes impago más viejo). Packs: «quedan N sesiones», descontando los turnos con «asistió» de la Agenda; con 0 → «Renovar pack». Por sesión: debe las asistidas sin pagar.
+- Profe (sus pacientes) y admin (todos, con filtro por profe): card «Cobros: N vencidos · N por vencer» en el Panel → pantalla **Pagos** filtrable por estado; pestaña **Pagos** en la ficha con el plan, el historial y «+ Registrar pago» (precarga el monto y el mes o las sesiones a cobrar).
+- **WhatsApp** en vencidos, por vencer y renovar, con el mensaje de la plantilla editable antes de mandarlo.
+- **Ajustes** (solo admin, `/coach/ajustes`): alias/CBU, plantillas de WhatsApp (pago y turno) y «Mostrar estado de cuota al paciente».
+- **Admin**: resumen del mes (cobrado, pendiente, vencido y total por profe) y exportar los pagos a Excel o CSV.
+- **Paciente** (solo si está activado): en Perfil, «Tu cuota: al día» o cuándo vence, con el alias. Nunca ve datos de otros.
+- RLS (`0011_pagos.sql`): el profe ve y registra los pagos de sus pacientes, el admin todos; el paciente solo lee su plan y sus pagos si el ajuste está activado. Sin pagos online por ahora (Mercado Pago queda para más adelante).
 
 ## Primera vez / pedir acceso
 
@@ -223,4 +235,4 @@ El reporte HTML queda en `playwright-report/` (`npx playwright show-report`).
 - [x] **F7**: E2E con Playwright (flujo clave, pedir acceso, cambio de usuario, equipo), gestión del equipo (Equipo, perfil del profe, `create-admin`, RLS de desactivados) y deploy en Vercel
 - [x] **F8**: planificador con RPE/RIR objetivo, registro real por serie («¿Cómo te fue?») y pestaña Registro del profe
 - [x] **F9**: agenda de turnos (Día/Semana, recurrentes, superposición, reprogramación, .ics y recordatorios por WhatsApp)
-- [ ] **F10**: pagos y recordatorios de cobro
+- [x] **F10**: pagos y recordatorios de cobro (planes, estados, packs, WhatsApp, ajustes, resumen y exportación)
