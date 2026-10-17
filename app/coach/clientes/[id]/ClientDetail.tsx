@@ -5,6 +5,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { ClientAccess } from "@/components/coach/ClientAccess";
 import { ClientLog } from "@/components/coach/ClientLog";
+import { ClientAppointments } from "@/components/agenda/ClientAppointments";
 import { ClientTabs } from "@/components/coach/ClientTabs";
 import { NoAccess } from "@/components/coach/NoAccess";
 import { Loading } from "@/components/Loading";
@@ -23,7 +24,8 @@ export function ClientDetail() {
   const { id } = useParams<{ id: string }>();
   const params = useSearchParams();
   const justCreated = params.get("nuevo") === "1";
-  const tab = params.get("tab") === "registro" ? "registro" : "ficha";
+  const tabParam = params.get("tab");
+  const tab = tabParam === "registro" || tabParam === "turnos" ? tabParam : "ficha";
   const [note, setNote] = useState("");
   const [savingNote, setSavingNote] = useState(false);
 
@@ -121,6 +123,7 @@ export function ClientDetail() {
           tabs={[
             { key: "ficha", label: "Ficha" },
             { key: "registro", label: "Registro" },
+            { key: "turnos", label: "Turnos" },
           ]}
         />
       </div>
@@ -128,6 +131,10 @@ export function ClientDetail() {
       {tab === "registro" ? (
         <div className="px-gutter">
           <ClientLog clientId={c.id} />
+        </div>
+      ) : tab === "turnos" ? (
+        <div className="px-gutter">
+          <ClientAppointments client={c} />
         </div>
       ) : (
         <div className="space-y-3 px-gutter">

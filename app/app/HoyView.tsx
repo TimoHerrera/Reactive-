@@ -2,6 +2,7 @@
 
 import { ProfileAvatar } from "@/components/ProfileAvatar";
 import Link from "next/link";
+import { NextAppointmentCard } from "@/components/agenda/NextAppointmentCard";
 import { EmptyRoutine } from "@/components/client/EmptyRoutine";
 import { useClientRoutine } from "@/components/client/useClientRoutine";
 import { PickClientNotice, ViewAsBanner, ViewAsNoAccess } from "@/components/client/ViewAsBanner";
@@ -32,6 +33,9 @@ export function HoyView() {
       <>
         {r.viewingAs && <ViewAsBanner client={d?.client ?? null} />}
         <EmptyRoutine title={`Hola, ${firstName}`} />
+        <div className="px-gutter pb-8">
+          <NextAppointmentCard clientId={r.clientId} readOnly={r.readOnly} />
+        </div>
       </>
     );
   }
@@ -52,6 +56,7 @@ export function HoyView() {
       </header>
 
       <div className="space-y-3 px-gutter">
+        <NextAppointmentCard clientId={r.clientId} readOnly={r.readOnly} />
         {/* Sesión de hoy */}
         <section className="overflow-hidden rounded-lg border border-line bg-surface" aria-labelledby="sesion-hoy">
           <div className="relative h-36">

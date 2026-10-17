@@ -4,6 +4,7 @@ import { ProfileAvatar } from "@/components/ProfileAvatar";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useClientRoutine } from "@/components/client/useClientRoutine";
+import { UpcomingAppointments } from "@/components/agenda/NextAppointmentCard";
 import { PickClientNotice, ViewAsBanner, ViewAsNoAccess } from "@/components/client/ViewAsBanner";
 import { Loading } from "@/components/Loading";
 import { useSession } from "@/components/SessionProvider";
@@ -60,6 +61,8 @@ export function PerfilView() {
             <p className="mt-2 text-[1.1875rem] font-bold leading-snug">{client.goal}</p>
           </section>
         )}
+
+        <UpcomingAppointments clientId={r.clientId} />
 
         <section className="rounded-lg border border-line bg-surface px-4" aria-label="Tus datos">
           <Row label="Email">{client.email}</Row>

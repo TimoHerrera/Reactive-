@@ -8,6 +8,7 @@ import type {
   ExerciseView,
   ItemCheck,
   SetLog,
+  Appointment,
   Profile,
   Routine,
   RoutineBlock,
@@ -16,12 +17,13 @@ import type {
   WorkoutSession,
 } from "./types";
 import { addDays, todayISO } from "@/lib/dates";
+import { baTimestamp } from "@/lib/agenda/time";
 
 /** Contraseña de todos los usuarios de demo (mock y seed.sql). Solo para desarrollo. */
 export const DEMO_PASSWORD = "reactive-demo";
 
 /** UUIDs determinísticos para que mock y SQL compartan ids. */
-export function seedId(kind: number, n: number): string {
+export function seedId(kind: number | "a" | "b" | "c" | "d", n: number): string {
   return `${kind}0000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 }
 
@@ -52,6 +54,7 @@ export interface Db {
   workoutSessions: WorkoutSession[];
   itemChecks: ItemCheck[];
   setLogs: SetLog[];
+  appointments: Appointment[];
   exerciseViews: ExerciseView[];
   accessRequests: (AccessRequest & { ipHash?: string | null })[];
   /** Solo mock: invitaciones simuladas (token → usuario). */
@@ -621,12 +624,14 @@ export function buildSeed(today: string = todayISO(), now: Date = new Date()): D
       clientSince: addDays(today, -71),
     }),
     client(IDS.sofia, "Sofía R.", "sofia@reactive.test", {
+      phone: "011 15 5555-0111",
       sport: "Handball",
       caseType: "postquirurgico",
       caseDetail: "LCA Fase 3",
       goal: "Volver a competir después de la cirugía de LCA",
     }),
     client(IDS.tomas, "Tomás L.", "tomas@reactive.test", {
+      phone: "11 5555-0112",
       sport: "Rugby",
       caseType: "rendimiento",
       caseDetail: "Pretemporada rugby",
@@ -842,6 +847,51 @@ export function buildSeed(today: string = todayISO(), now: Date = new Date()): D
     },
   ];
 
+  // ── Agenda: turnos alrededor de hoy (hora de Buenos Aires) ─────────
+  // [paciente, profe, días desde hoy, hora, tipo, estado, minutos, nota]
+  type ApptSpec = [string, string, number, string, Appointment["type"], Appointment["status"], number?, string?];
+  const APPTS: ApptSpec[] = [
+    [IDS.martina, IDS.nico, -7, "18:00", "kinesiologia", "asistio"],
+    [IDS.tomas, IDS.nico, -6, "09:00", "entrenamiento", "asistio"],
+    [IDS.joaquin, IDS.nico, -3, "08:00", "kinesiologia", "ausente"],
+    [IDS.martina, IDS.nico, -4, "18:00", "kinesiologia", "asistio"],
+    [IDS.valentina, IDS.nico, -1, "12:00", "sport_recovery", "asistio"],
+    [IDS.tomas, IDS.nico, 0, "09:00", "entrenamiento", "agendado"],
+    [IDS.sofia, IDS.nico, 0, "11:00", "kinesiologia", "agendado"],
+    [IDS.martina, IDS.nico, 0, "18:00", "kinesiologia", "agendado", 60, "Testear salto unipodal"],
+    [IDS.lucas, IDS.nico, 1, "10:00", "evaluacion_funcional", "agendado", 90, "Evaluación inicial: velocidad y saltos"],
+    [IDS.sofia, IDS.nico, 1, "17:00", "mep_sport", "agendado", 45],
+    [IDS.joaquin, IDS.nico, 2, "08:00", "kinesiologia", "reprogramacion_pedida"],
+    [IDS.camila, IDS.nico, 3, "16:00", "kinesiologia", "agendado", 45],
+    [IDS.bruno, IDS.caro, 1, "19:00", "entrenamiento", "agendado"],
+  ];
+  const appointments: Appointment[] = APPTS.map(([clientId, coachId, day, time, type, status, minutes = 60, notes], i) => ({
+    id: seedId("a", i + 1),
+    clientId,
+    coachId,
+    startsAt: baTimestamp(addDays(today, day), time),
+    durationMin: minutes,
+    type,
+    status,
+    notes: notes ?? null,
+    seriesId: null,
+    createdBy: coachId,
+    createdAt: ts(-14),
+    rescheduleReason: status === "reprogramacion_pedida" ? "Tengo un examen en la facultad" : null,
+    reschedulePreference: status === "reprogramacion_pedida" ? "Mismo día a la tarde, después de las 17" : null,
+    rescheduleRequestedAt: status === "reprogramacion_pedida" ? ts(0, 3) : null,
+  }));
+  // Martina: serie semanal (Kinesiología, jueves 18:00) desde la semana que viene, 4 semanas.
+  for (let w = 1; w <= 4; w++) {
+    appointments.push({
+      ...appointments.find((a) => a.clientId === IDS.martina && a.notes)!,
+      id: seedId("a", 100 + w),
+      startsAt: baTimestamp(addDays(today, 7 * w), "18:00"),
+      notes: null,
+      seriesId: seedId("d", 1),
+    });
+  }
+
   return {
     profiles,
     coachNotes,
@@ -853,6 +903,7 @@ export function buildSeed(today: string = todayISO(), now: Date = new Date()): D
     workoutSessions,
     itemChecks,
     setLogs,
+    appointments,
     exerciseViews,
     accessRequests,
     activations: [],

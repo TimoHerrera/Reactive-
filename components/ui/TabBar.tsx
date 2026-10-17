@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ComponentType, SVGProps } from "react";
 import { cn } from "@/lib/cn";
-import { IconBolt, IconClipboard, IconGrid, IconPlaySquare, IconUser, IconUsers } from "./icons";
+import { IconBolt, IconCalendar, IconClipboard, IconGrid, IconPlaySquare, IconUser, IconUsers } from "./icons";
 
 export type TabItem = {
   href: string;
@@ -22,6 +22,7 @@ export const CLIENT_TABS: TabItem[] = [
 
 export const COACH_TABS: TabItem[] = [
   { href: "/coach", label: "Panel", icon: IconGrid, exact: true },
+  { href: "/coach/agenda", label: "Agenda", icon: IconCalendar },
   { href: "/coach/clientes", label: "Clientes", icon: IconUsers },
   { href: "/coach/rutinas", label: "Rutinas", icon: IconClipboard },
   { href: "/coach/ejercicios", label: "Ejercicios", icon: IconPlaySquare },

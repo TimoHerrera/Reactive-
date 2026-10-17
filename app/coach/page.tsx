@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
+import { TodayCard } from "@/components/agenda/TodayCard";
 import { CoachFilterChips, useCoachFilter } from "@/components/coach/CoachFilter";
 import { CoachMenu } from "@/components/coach/CoachMenu";
 import { InlineLoading } from "@/components/Loading";
@@ -129,6 +130,8 @@ export default function PanelPage() {
             </Link>
           ))}
         </div>
+
+        <TodayCard coachId={filter.coachId} />
 
         <Link
           href="/coach/clientes?filtro=solicitudes"

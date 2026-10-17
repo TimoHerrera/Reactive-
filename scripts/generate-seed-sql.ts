@@ -111,6 +111,16 @@ for (const r of db.accessRequests) {
   push(`insert into public.access_requests (id, full_name, email, phone, requested_coach_id, case_type, message, status, created_at) values (${q(r.id)}, ${q(r.fullName)}, ${q(r.email)}, ${q(r.phone)}, ${q(r.requestedCoachId)}, ${q(r.caseType)}, ${q(r.message)}, ${q(r.status)}, ${ts(r.createdAt)}) on conflict (id) do nothing;`);
 }
 
+push("\n-- ── Agenda ──────────────────────────────────────────────────────");
+// Turnos pasados y futuros: relativos a now() en los dos sentidos.
+const tsAny = (iso: string) => {
+  const secs = Math.round((new Date(iso).getTime() - NOW.getTime()) / 1000);
+  return secs === 0 ? "now()" : `now() ${secs > 0 ? "+" : "-"} interval '${Math.abs(secs)} seconds'`;
+};
+for (const a of db.appointments) {
+  push(`insert into public.appointments (id, client_id, coach_id, starts_at, duration_min, type, status, notes, series_id, created_by, created_at, reschedule_reason, reschedule_preference, reschedule_requested_at) values (${q(a.id)}, ${q(a.clientId)}, ${q(a.coachId)}, ${tsAny(a.startsAt)}, ${a.durationMin}, ${q(a.type)}, ${q(a.status)}, ${q(a.notes)}, ${q(a.seriesId)}, ${q(a.createdBy)}, ${ts(a.createdAt)}, ${q(a.rescheduleReason)}, ${q(a.reschedulePreference)}, ${a.rescheduleRequestedAt ? ts(a.rescheduleRequestedAt) : "null"}) on conflict (id) do nothing;`);
+}
+
 push("\ncommit;\n");
 
 const target = resolve(__dirname, "../supabase/seed.sql");

@@ -36,6 +36,9 @@ import {
 } from "@/lib/access/rules";
 import { DuplicateEmailError, existingUserFor, sameName } from "../errors";
 import { cleanSetLogs } from "@/lib/routine/setlogs";
+import { byStart } from "@/lib/agenda/agenda";
+import { applyPatch, buildAppointments, canRequestReschedule, requestReschedule, validateAppointment } from "@/lib/agenda/series";
+import { baDate } from "@/lib/agenda/time";
 import { delay, getDb, mutate, resetMockDb, uuid } from "./store";
 import { mockVideos } from "./videos";
 
@@ -142,6 +145,7 @@ function purgeUser(db: MockDb, p: Profile, adminId: string, reassignTo: string |
     db.routines = db.routines.filter((r) => !routineIds.has(r.id));
     db.itemChecks = db.itemChecks.filter((c) => !sessionIds.has(c.sessionId));
     db.setLogs = db.setLogs.filter((l) => !sessionIds.has(l.sessionId));
+    db.appointments = db.appointments.filter((x) => x.clientId !== p.id);
     db.workoutSessions = db.workoutSessions.filter((s) => !sessionIds.has(s.id));
     db.exerciseViews = db.exerciseViews.filter((v) => v.clientId !== p.id);
     db.coachNotes = db.coachNotes.filter((n) => n.clientId !== p.id);
@@ -153,6 +157,8 @@ function purgeUser(db: MockDb, p: Profile, adminId: string, reassignTo: string |
       if (!target || target.id === p.id) throw new Error(`Primero reasigná sus ${clients.length} clientes a otro profe.`);
       for (const c of clients) c.coachId = target.id;
     }
+    // Sus turnos pasan al profe que ahora atiende a cada paciente.
+    for (const ap of db.appointments) if (ap.coachId === p.id) ap.coachId = profileById(db, ap.clientId)?.coachId ?? adminId;
     for (const e of db.exercises) if (e.createdBy === p.id) e.createdBy = adminId;
     for (const r of db.routines) {
       if (r.createdBy === p.id) r.createdBy = r.isTemplate || !r.clientId ? adminId : null;
@@ -654,6 +660,73 @@ export const mockDataSource: DataSource = {
           return clean;
         }),
         40,
+      );
+    },
+  },
+
+  appointments: {
+    async list(filter = {}) {
+      const me = currentUser();
+      const db = getDb();
+      return delay(
+        db.appointments
+          .filter((a) => seesClient(db, me, a.clientId) && (!filter.clientId || a.clientId === filter.clientId))
+          .filter((a) => (!filter.from || baDate(a.startsAt) >= filter.from) && (!filter.to || baDate(a.startsAt) <= filter.to))
+          .sort(byStart),
+      );
+    },
+    async create(input, repeat) {
+      const me = requireStaff();
+      return delay(
+        mutate((db) => {
+          if (!seesClient(db, me, input.clientId)) throw new Error("Ese paciente lo atiende otro profe.");
+          // Un profe agenda a su nombre; el admin elige el profe (por defecto, el del paciente).
+          const coachId = me.role === "admin" ? input.coachId || profileById(db, input.clientId)?.coachId || me.id : me.id;
+          const error = validateAppointment({ ...input, coachId });
+          if (error) throw new Error(error);
+          const created = buildAppointments({ ...input, coachId }, repeat ?? null, { newId: uuid, createdBy: me.id, now: now() });
+          db.appointments.push(...created);
+          return created;
+        }),
+      );
+    },
+    async update(id, patch, scope = "this") {
+      const me = requireStaff();
+      return delay(
+        mutate((db) => {
+          const target = db.appointments.find((a) => a.id === id);
+          if (!target || !seesClient(db, me, target.clientId)) notFound("Turno");
+          const changed = applyPatch(db.appointments, id, me.role === "admin" ? patch : { ...patch, coachId: undefined }, scope);
+          const byId = new Map(changed.map((a) => [a.id, a]));
+          db.appointments = db.appointments.map((a) => byId.get(a.id) ?? a);
+          return changed;
+        }),
+      );
+    },
+    async remove(id, scope = "this") {
+      const me = requireStaff();
+      mutate((db) => {
+        const target = db.appointments.find((a) => a.id === id);
+        if (!target || !seesClient(db, me, target.clientId)) notFound("Turno");
+        const gone = new Set(
+          scope === "following" && target.seriesId
+            ? db.appointments.filter((a) => a.seriesId === target.seriesId && a.startsAt >= target.startsAt).map((a) => a.id)
+            : [id],
+        );
+        db.appointments = db.appointments.filter((a) => !gone.has(a.id));
+      });
+      await delay(undefined);
+    },
+    async requestReschedule(id, input) {
+      const me = currentUser();
+      return delay(
+        mutate((db) => {
+          const i = db.appointments.findIndex((a) => a.id === id && a.clientId === me?.id);
+          if (i < 0) notFound("Turno");
+          if (!canRequestReschedule(db.appointments[i]!)) throw new Error("Ese turno ya no se puede reprogramar.");
+          db.appointments[i] = requestReschedule(db.appointments[i]!, input, now());
+          return db.appointments[i]!;
+        }),
       );
     },
   },

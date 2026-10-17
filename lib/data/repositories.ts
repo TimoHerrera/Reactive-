@@ -1,8 +1,11 @@
 import type { AccessRequestInput, SubmitResult } from "@/lib/access/rules";
+import type { Repeat } from "@/lib/agenda/agenda";
+import type { AppointmentInput, AppointmentPatch, EditScope } from "@/lib/agenda/series";
 import type {
   AccountStatus,
   AccessRequest,
   AccessRequestStatus,
+  Appointment,
   CoachNote,
   Exercise,
   ExerciseView,
@@ -184,6 +187,18 @@ export interface AuthRepo {
   redeemCode(email: string, code: string, password: string): Promise<{ ok: true; user: SessionUser } | { ok: false; error: string }>;
 }
 
+export interface AppointmentsRepo {
+  /** Staff: los turnos de sus pacientes (admin: todos). Paciente: los suyos. `from`/`to`: fechas de Buenos Aires, inclusive. */
+  list(filter?: { from?: string; to?: string; clientId?: string }): Promise<Appointment[]>;
+  /** Crea uno o, con `repeat`, la serie completa. Solo staff (para sus pacientes). */
+  create(input: AppointmentInput, repeat?: Repeat | null): Promise<Appointment[]>;
+  /** Edita «solo este» o «este y los siguientes». Devuelve los turnos modificados. */
+  update(id: string, patch: AppointmentPatch, scope?: EditScope): Promise<Appointment[]>;
+  remove(id: string, scope?: EditScope): Promise<void>;
+  /** El paciente pide reprogramar: motivo + franja preferida. */
+  requestReschedule(id: string, input: { reason: string; preference: string }): Promise<Appointment>;
+}
+
 export interface DataSource {
   kind: "mock" | "supabase";
   auth: AuthRepo;
@@ -196,4 +211,5 @@ export interface DataSource {
   videos: VideosRepo;
   accessRequests: AccessRequestsRepo;
   team: TeamRepo;
+  appointments: AppointmentsRepo;
 }
