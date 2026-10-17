@@ -18,7 +18,7 @@ export default function SolicitarAccesoPage() {
   const [coaches, setCoaches] = useState<PublicCoach[] | null>(null);
   const [form, setForm] = useState({ fullName: "", email: "", phone: "", coach: "", caseType: null as CaseType | null, message: "", website: "" });
   const [errors, setErrors] = useState<FieldErrors>({});
-  const [notice, setNotice] = useState<{ kind: "pending" | "account" | "error"; text: string } | null>(null);
+  const [notice, setNotice] = useState<{ kind: "pending" | "account" | "paused" | "error"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
 
@@ -52,7 +52,8 @@ export default function SolicitarAccesoPage() {
       } else if (res.reason === "invalid") setErrors(res.errors);
       else {
         setErrors({});
-        setNotice({ kind: res.reason === "pending" || res.reason === "account" ? res.reason : "error", text: res.message });
+        const kind = res.reason === "pending" || res.reason === "account" || res.reason === "paused" ? res.reason : "error";
+        setNotice({ kind, text: res.message });
       }
     } catch {
       setNotice({ kind: "error", text: "No pudimos enviar el pedido. Probá de nuevo en un rato." });
@@ -190,6 +191,16 @@ export default function SolicitarAccesoPage() {
                   Recuperar contraseña
                 </Link>
               </p>
+            )}
+            {notice.kind === "paused" && (
+              <a
+                href={REACTIVE_WHATSAPP_LINK}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 inline-flex min-h-[44px] items-center font-bold underline underline-offset-4"
+              >
+                Escribinos por WhatsApp
+              </a>
             )}
           </div>
         )}

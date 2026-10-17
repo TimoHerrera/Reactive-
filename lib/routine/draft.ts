@@ -238,7 +238,7 @@ const nn = (s: string) => (s.trim() ? s.trim() : null);
 /** Borrador → árbol para guardar. `keepIds` conserva ids (editar); si no, todo es nuevo. */
 export function draftToTree(
   d: RoutineDraft,
-  opts: { clientId: string | null; isTemplate: boolean; publishedAt: string | null; routineId?: string; createdBy?: string | null; keepIds?: boolean },
+  opts: { clientId: string | null; isTemplate: boolean; publishedAt: string | null; routineId?: string; keepIds?: boolean },
 ): RoutineTree {
   const routineId = opts.routineId ?? "";
   return {
@@ -251,7 +251,10 @@ export function draftToTree(
     endsOn: opts.isTemplate ? null : d.endsOn,
     daysPerWeek: d.days.length,
     clientMessage: nn(d.clientMessage),
-    createdBy: opts.createdBy ?? null,
+    // Autor y editor los fija la capa de datos con el usuario logueado (nunca el formulario).
+    createdBy: null,
+    updatedBy: null,
+    updatedAt: null,
     publishedAt: opts.publishedAt,
     createdAt: "",
     days: d.days.map((day, di) => {

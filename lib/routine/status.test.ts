@@ -13,6 +13,8 @@ const base: Routine = {
   daysPerWeek: 3,
   clientMessage: null,
   createdBy: null,
+  updatedBy: null,
+  updatedAt: null,
   publishedAt: "2026-09-28T12:00:00Z",
   createdAt: "2026-09-28T12:00:00Z",
 };

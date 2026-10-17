@@ -12,6 +12,19 @@ export function emitSessionChange() {
   listeners.forEach((fn) => fn());
 }
 
+// Sesión revocada: el usuario fue desactivado o eliminado con la sesión abierta.
+// La capa de datos lo detecta en la próxima acción y la app lo manda al login.
+const revokedListeners = new Set<() => void>();
+
+export function onSessionRevoked(fn: () => void): () => void {
+  revokedListeners.add(fn);
+  return () => revokedListeners.delete(fn);
+}
+
+export function emitSessionRevoked() {
+  revokedListeners.forEach((fn) => fn());
+}
+
 /**
  * Claves de sessionStorage atadas al usuario: borrador de rutina, «Ver como», posición en Mi Rutina…
  * Todas empiezan con «rx-». Se borran al entrar y al salir para que nada pase de una sesión a otra.

@@ -7,9 +7,11 @@ const TODAY = "2026-10-11";
 const db = buildSeed(TODAY, new Date("2026-10-11T15:00:00-03:00"));
 
 describe("seed", () => {
-  it("tiene los 8 clientes del diseño con sus filtros (4 activas, 2 por vencer, 2 sin rutina)", () => {
-    const clients = db.profiles.filter((p) => p.role === "client");
+  it("Nico tiene los 8 clientes del diseño con sus filtros (4 activas, 2 por vencer, 2 sin rutina)", () => {
+    const clients = db.profiles.filter((p) => p.role === "client" && p.coachId === IDS.nico);
     expect(clients).toHaveLength(8);
+    // Y Caro tiene uno propio (para probar que cada profe ve solo lo suyo).
+    expect(db.profiles.filter((p) => p.role === "client" && p.coachId === IDS.caro).map((p) => p.fullName)).toEqual(["Bruno S."]);
     const count = { activa: 0, "por-vencer": 0, "sin-rutina": 0 };
     for (const c of clients) count[clientRoutineFilter(db.routines.filter((r) => r.clientId === c.id), TODAY)]++;
     expect(count).toEqual({ activa: 4, "por-vencer": 2, "sin-rutina": 2 });

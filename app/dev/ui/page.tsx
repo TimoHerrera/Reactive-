@@ -74,7 +74,7 @@ export default function DevUiPage() {
     <main className="phone pb-[120px]">
       <header className="bg-grid px-gutter pb-8 pt-10">
         <div className="flex items-center gap-4">
-          <LogoMark className="h-14 w-12 text-ink" />
+          <LogoMark className="h-12 w-14 text-ink" />
           <Wordmark className="!text-left" />
         </div>
         <h1 className="display mt-8 text-display-xl text-title">Design system</h1>

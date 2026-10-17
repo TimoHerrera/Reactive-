@@ -1,12 +1,13 @@
 "use client";
 
+import { ProfileAvatar } from "@/components/ProfileAvatar";
 import Link from "next/link";
 import { EmptyRoutine } from "@/components/client/EmptyRoutine";
 import { useClientRoutine } from "@/components/client/useClientRoutine";
-import { PickClientNotice, ViewAsBanner } from "@/components/client/ViewAsBanner";
+import { PickClientNotice, ViewAsBanner, ViewAsNoAccess } from "@/components/client/ViewAsBanner";
 import { WeekRing } from "@/components/client/WeekRing";
 import { Loading } from "@/components/Loading";
-import { Avatar, BrushNote, LogoMark, PillButton } from "@/components/ui";
+import { BrushNote, LogoMark, PillButton } from "@/components/ui";
 import { DuotonePlaceholder } from "@/components/video/ExerciseThumb";
 import { formatLong, todayISO } from "@/lib/dates";
 import { itemsOfDay } from "@/lib/routine/locate";
@@ -16,6 +17,7 @@ export function HoyView() {
   const r = useClientRoutine();
 
   if (r.viewingAs && !r.clientId) return <PickClientNotice />;
+  if (r.noAccess) return <ViewAsNoAccess />;
   if (r.loading) return <Loading />;
 
   const d = r.data;
@@ -43,7 +45,7 @@ export function HoyView() {
       <header className="bg-grid px-gutter pb-6 pt-10">
         <div className="flex items-start justify-between gap-3">
           <p className="label">{formatLong(todayISO())}</p>
-          <LogoMark className="h-7 w-6 text-ink" />
+          <LogoMark className="h-6 w-7 text-ink" />
         </div>
         <h1 className="display mt-3 text-display-xl">Hola, {firstName}</h1>
         <p className="mt-2 text-body text-title">{todayLine(day)}</p>
@@ -83,7 +85,7 @@ export function HoyView() {
             <p className="label">Tu profe</p>
             {coach ? (
               <>
-                <Avatar name={coach.fullName} size="lg" pro className="mt-3" />
+                <ProfileAvatar avatarPath={coach.avatarPath} name={coach.fullName} size="lg" pro className="mt-3" />
                 <p className="mt-3 text-title-sm">{coach.fullName}</p>
                 <p className="text-small text-muted">{coach.title}</p>
                 <Link

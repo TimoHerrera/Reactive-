@@ -23,9 +23,12 @@ export function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPwd, setShowPwd] = useState(false);
-  const [error, setError] = useState<string | null>(
-    params.get("error") === "link" ? "El link venció o ya se usó. Pedí uno nuevo." : null,
-  );
+  const [error, setError] = useState<string | null>(() => {
+    const e = params.get("error");
+    if (e === "link") return "El link venció o ya se usó. Pedí uno nuevo.";
+    if (e === "desactivado") return "Tu acceso está desactivado. Hablá con Reactive.";
+    return null;
+  });
   const [busy, setBusy] = useState(false);
 
   async function signIn(e: string, p: string) {
@@ -140,6 +143,9 @@ export function LoginForm() {
             ¿Primera vez?&nbsp;<span className="text-title">Pedile tu acceso a tu profe.</span>
           </Link>
           <p className="mt-3 text-small text-muted">Clientes y profes usan el mismo acceso.</p>
+          <Link href="/activar?codigo" className="mt-1 inline-flex min-h-[44px] items-center text-small text-muted underline underline-offset-4 hover:text-ink">
+            ¿Te pasaron un código de invitación?
+          </Link>
         </footer>
       </form>
     </main>

@@ -52,12 +52,28 @@ export interface Profile {
   coachId: string | null;
   clientSince: ISODate | null;
   createdAt: ISODateTime;
+  /** Bio corta (profes: la ve el cliente en «Tu profe → Ver perfil»). */
+  bio: string | null;
+  /** Foto (path en Storage). Sin foto se muestran las iniciales. */
+  avatarPath: string | null;
+  /** Cuándo creó su contraseña. null = invitación pendiente. */
+  activatedAt: ISODateTime | null;
+  /** Desactivado: pierde el acceso al instante; su historial queda. */
+  disabledAt: ISODateTime | null;
+}
+
+export type AccountStatus = "activo" | "pendiente" | "desactivado";
+
+export function accountStatus(p: Pick<Profile, "activatedAt" | "disabledAt">): AccountStatus {
+  if (p.disabledAt) return "desactivado";
+  return p.activatedAt ? "activo" : "pendiente";
 }
 
 export interface CoachNote {
   id: string;
   clientId: string;
-  authorId: string;
+  /** null si el autor ya no existe (profe eliminado). */
+  authorId: string | null;
   body: string;
   createdAt: ISODateTime;
 }
@@ -93,7 +109,11 @@ export interface Routine {
   daysPerWeek: number;
   /** Sale como «Nota del profe» en Hoy. */
   clientMessage: string | null;
+  /** Quién la cargó: siempre el usuario logueado al crearla (lo fija el servidor, no el formulario). */
   createdBy: string | null;
+  /** Última edición (otro profe o el admin): «Cargada por X · editada por Y». */
+  updatedBy: string | null;
+  updatedAt: ISODateTime | null;
   publishedAt: ISODateTime | null;
   createdAt: ISODateTime;
 }
@@ -195,6 +215,8 @@ export interface AccessRequest {
   reviewedBy: string | null;
   reviewedAt: ISODateTime | null;
   rejectReason: string | null;
+  /** Si el email ya tenía cuenta, la solicitud se vincula a ese usuario en vez de crear otro. */
+  linkedProfileId: string | null;
 }
 
 /** Profe que se puede elegir en el formulario público (solo datos públicos). */

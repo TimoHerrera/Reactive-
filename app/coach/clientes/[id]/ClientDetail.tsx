@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useState } from "react";
+import { ClientAccess } from "@/components/coach/ClientAccess";
+import { NoAccess } from "@/components/coach/NoAccess";
 import { Loading } from "@/components/Loading";
 import { Avatar, PillButton, StatusBadge } from "@/components/ui";
 import { IconArrowLeft } from "@/components/ui/icons";
@@ -37,14 +39,7 @@ export function ClientDetail() {
   if (q.loading && !q.data) return <Loading />;
   const d = q.data;
   if (!d?.client) {
-    return (
-      <div className="px-gutter pt-16 text-center">
-        <p className="display text-h1">Cliente no encontrado</p>
-        <PillButton href="/coach/clientes" variant="inverse" className="mt-8">
-          Volver a Clientes
-        </PillButton>
-      </div>
-    );
+    return <NoAccess text="Este cliente no existe o lo atiende otro profe." href="/coach/clientes" label="Volver a Clientes" />;
   }
   const c = d.client;
   const summary = summarizeClient(c, d.routines);
@@ -53,7 +48,7 @@ export function ClientDetail() {
   const past = d.routines
     .filter((r) => r.publishedAt && !r.isTemplate && r.id !== current?.id && routineStatus(r) === "vencida")
     .sort((a, b) => (b.endsOn ?? "").localeCompare(a.endsOn ?? ""));
-  const authorName = (aid: string) => d.staff.find((s) => s.id === aid)?.fullName ?? "Profe";
+  const authorName = (aid: string | null) => d.staff.find((s) => s.id === aid)?.fullName ?? "Profe";
   const phone = c.phone?.replace(/\D/g, "");
   const since = [c.sport, c.clientSince && `Cliente desde ${formatMonthYear(c.clientSince)}`].filter(Boolean).join(" · ");
 
@@ -84,7 +79,17 @@ export function ClientDetail() {
           <Avatar name={c.fullName} size="lg" className="!h-20 !w-20 border-2 border-ink !text-[1.75rem]" />
           <div className="min-w-0">
             <h1 className="display text-h1">{c.fullName}</h1>
+            {c.disabledAt && (
+              <span className="mt-1 inline-flex h-6 items-center rounded-full border border-line px-2.5 text-caption font-bold uppercase text-muted">
+                Desactivado
+              </span>
+            )}
             {since && <p className="mt-1 text-small text-muted">{since}</p>}
+            {c.coachId && (
+              <p className="mt-1 text-small text-muted" data-testid="client-coach">
+                Profe: <strong className="font-semibold text-ink">{authorName(c.coachId)}</strong>
+              </p>
+            )}
           </div>
         </div>
         <div className="mt-4 grid grid-cols-2 gap-2">
@@ -259,6 +264,8 @@ export function ClientDetail() {
             </ul>
           </section>
         )}
+
+        <ClientAccess client={c} onChanged={(p) => q.setData((prev) => (prev ? { ...prev, client: p } : prev))} />
       </div>
     </div>
   );

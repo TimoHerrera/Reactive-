@@ -3,7 +3,6 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Loading } from "@/components/Loading";
-import { useSession } from "@/components/SessionProvider";
 import { StepData } from "@/components/coach/routine/StepData";
 import { StepDays } from "@/components/coach/routine/StepDays";
 import { StepPublish } from "@/components/coach/routine/StepPublish";
@@ -25,7 +24,6 @@ export function ManualWizard() {
   const router = useRouter();
   const params = useSearchParams();
   const step = (Number(params.get("paso")) || 1) as 1 | 2 | 3;
-  const { user } = useSession();
   const { draft, loaded, update } = useDraft();
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +35,8 @@ export function ManualWizard() {
       data.routines.list(),
       data.exercises.list(),
     ]);
-    return { clients, routines, exercises };
+    // A un cliente desactivado no se le asignan rutinas nuevas.
+    return { clients: clients.filter((c) => !c.disabledAt), routines, exercises };
   }, []);
 
   useEffect(() => {
@@ -70,7 +69,7 @@ export function ManualWizard() {
     setPublishing(true);
     setError(null);
     try {
-      const res = await publishDraft(draft, { clientIds: draft.clientIds, saveAsTemplate: draft.saveAsTemplate, userId: user?.id ?? null });
+      const res = await publishDraft(draft, { clientIds: draft.clientIds, saveAsTemplate: draft.saveAsTemplate });
       clearDraft();
       const q = new URLSearchParams();
       if (res.routineIds.length) q.set("c", res.routineIds.map((r) => r.clientId).join(","));
@@ -93,7 +92,7 @@ export function ManualWizard() {
     try {
       await publishDraft(
         draft.isTemplate && draft.routineId ? draft : { ...draft, routineId: undefined, isTemplate: false },
-        { clientIds: [], saveAsTemplate: true, userId: user?.id ?? null },
+        { clientIds: [], saveAsTemplate: true },
       );
       setToast("Plantilla guardada en Rutinas › Plantillas.");
     } catch (e) {

@@ -3,13 +3,16 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useSession } from "@/components/SessionProvider";
-import { Avatar } from "@/components/ui";
+import { ProfileAvatar } from "@/components/ProfileAvatar";
 import { data } from "@/lib/data";
-import { resetMockDb } from "@/lib/data/mock/store";
+import { useQuery } from "@/lib/hooks";
+import { hardNavigate } from "@/lib/auth/session-events";
+import { resetDemoData } from "@/lib/data/mock";
 
-/** Avatar del profe con menú: Profes (admin), restablecer demo (mock) y cerrar sesión. */
+/** Avatar del profe con menú: Mi perfil, Equipo (admin), restablecer datos de demo (admin, mock) y cerrar sesión. */
 export function CoachMenu() {
   const { user, signOut } = useSession();
+  const me = useQuery(() => (user ? data.profiles.get(user.id) : Promise.resolve(null)), [user?.id]);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -38,31 +41,32 @@ export function CoachMenu() {
         aria-label={`Menú de ${user.fullName}`}
         className="rounded-full"
       >
-        <Avatar name={user.fullName} size="md" pro />
+        <ProfileAvatar name={user.fullName} avatarPath={me.data?.avatarPath} size="md" pro />
       </button>
       {open && (
         <div role="menu" className="absolute right-0 top-full z-50 mt-2 w-60 overflow-hidden rounded-md border border-line bg-surface-2 py-1">
           <p className="px-4 py-2 text-small text-muted">
             {user.fullName} · {user.role === "admin" ? "Admin" : "Profe"}
           </p>
+          <Link role="menuitem" href="/coach/perfil" className={item}>
+            Mi perfil
+          </Link>
           {user.role === "admin" && (
-            <Link role="menuitem" href="/coach/profes" className={item}>
-              Profes
+            <Link role="menuitem" href="/coach/equipo" className={item}>
+              Equipo
             </Link>
           )}
-          {data.kind === "mock" && (
+          {data.kind === "mock" && user.role === "admin" && (
             <button
               role="menuitem"
               type="button"
               className={item}
               onClick={() => {
-                if (window.confirm("¿Volver a los datos de demo? Se pierde lo que cargaste en este navegador.")) {
-                  resetMockDb();
-                  setOpen(false);
-                }
+                if (!window.confirm("¿Restablecer los datos de demo? Se borran los usuarios, rutinas y videos de prueba de este navegador.")) return;
+                void resetDemoData().then(() => hardNavigate("/coach"));
               }}
             >
-              Restablecer datos demo
+              Restablecer datos de demo
             </button>
           )}
           <button role="menuitem" type="button" className={`${item} text-danger-ink`} onClick={() => void signOut()}>

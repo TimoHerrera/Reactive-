@@ -4,9 +4,29 @@ import * as tus from "tus-js-client";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getBrowserSupabase } from "@/lib/supabase/browser";
 import { SUPABASE_URL, VIDEO_BUCKET } from "@/lib/supabase/env";
-import { inviteClient, inviteCoach } from "@/app/actions/clients";
+import { inviteClient } from "@/app/actions/clients";
+import {
+  createInviteCode,
+  deactivateStaff,
+  inviteStaff,
+  markActivated,
+  reactivateStaff,
+  redeemInviteCode,
+  resendInvite,
+  setStaffRole,
+} from "@/app/actions/team";
 import { approveAccessRequest, listPublicCoaches, submitAccessRequest } from "@/app/actions/access";
+import { deleteUser, setClientActive } from "@/app/actions/accounts";
+import { emitSessionRevoked } from "@/lib/auth/session-events";
+import { DuplicateEmailError, type ExistingUser } from "../errors";
 import type { DataSource } from "../repositories";
+
+/** Errores de server actions → excepción (con «Ver ficha» si el email ya existe). */
+function fail(res: { error: string; existing?: ExistingUser | null }): never {
+  if (res.existing !== undefined) throw new DuplicateEmailError(res.existing);
+  throw new Error(res.error);
+}
+import { accountStatus } from "../types";
 import type {
   AccessRequest,
   CoachNote,
@@ -45,6 +65,10 @@ const toProfile = (r: Row): Profile => ({
   coachId: (r.coach_id as string) ?? null,
   clientSince: (r.client_since as string) ?? null,
   createdAt: r.created_at as string,
+  bio: (r.bio as string) ?? null,
+  avatarPath: (r.avatar_path as string) ?? null,
+  activatedAt: (r.activated_at as string) ?? null,
+  disabledAt: (r.disabled_at as string) ?? null,
 });
 
 const fromProfilePatch = (p: Partial<Profile>): Row => {
@@ -59,6 +83,8 @@ const fromProfilePatch = (p: Partial<Profile>): Row => {
     goal: "goal",
     coachId: "coach_id",
     clientSince: "client_since",
+    bio: "bio",
+    avatarPath: "avatar_path",
   };
   const out: Row = {};
   for (const [k, v] of Object.entries(p)) if (map[k]) out[map[k]!] = v;
@@ -113,6 +139,8 @@ const toRoutine = (r: Row): Routine => ({
   daysPerWeek: (r.days_per_week as number) ?? 0,
   clientMessage: (r.client_message as string) ?? null,
   createdBy: (r.created_by as string) ?? null,
+  updatedBy: (r.updated_by as string) ?? null,
+  updatedAt: (r.updated_at as string) ?? null,
   publishedAt: (r.published_at as string) ?? null,
   createdAt: r.created_at as string,
 });
@@ -130,6 +158,7 @@ const toAccessRequest = (r: Row): AccessRequest => ({
   reviewedBy: (r.reviewed_by as string) ?? null,
   reviewedAt: (r.reviewed_at as string) ?? null,
   rejectReason: (r.reject_reason as string) ?? null,
+  linkedProfileId: (r.linked_profile_id as string) ?? null,
 });
 
 const toSession = (r: Row): WorkoutSession => ({
@@ -185,8 +214,13 @@ async function sessionUser(): Promise<SessionUser | null> {
   const { data } = await sb().auth.getUser();
   if (!data.user) return null;
   const row = check(await sb().from("profiles").select("*").eq("id", data.user.id).maybeSingle());
-  if (!row) return null;
-  const p = toProfile(row as Row);
+  const p = row ? toProfile(row as Row) : null;
+  if (!p || p.disabledAt) {
+    // Desactivado o eliminado con la sesión abierta: se corta en esta acción y la app va al login.
+    await sb().auth.signOut();
+    emitSessionRevoked();
+    return null;
+  }
   return { id: p.id, role: p.role, fullName: p.fullName, email: p.email || data.user.email || "" };
 }
 
@@ -216,6 +250,15 @@ export const supabaseDataSource: DataSource = {
     async updatePassword(password) {
       const { error } = await sb().auth.updateUser({ password });
       if (error) throw new Error(error.message);
+      await markActivated();
+    },
+    async redeemCode(email, code, password) {
+      const res = await redeemInviteCode(email, code, password);
+      if (!res.ok) return res;
+      const { error } = await sb().auth.signInWithPassword({ email: email.trim(), password });
+      if (error) return { ok: false, error: "La cuenta quedó activa, pero no pudimos iniciar sesión. Probá ingresar." };
+      const user = await sessionUser();
+      return user ? { ok: true, user } : { ok: false, error: "No pudimos iniciar sesión." };
     },
     async activate() {
       // La sesión ya la dejó /auth/callback con el link de la invitación.
@@ -242,14 +285,19 @@ export const supabaseDataSource: DataSource = {
     },
     async createClient(input) {
       const res = await inviteClient(input);
-      if (!res.ok) throw new Error(res.error);
+      if (!res.ok) fail(res);
       return res.profile;
     },
-    async createStaff(input) {
-      const res = await inviteCoach(input);
-      if (!res.ok) throw new Error(res.error);
+    async setClientActive(id, active) {
+      const res = await setClientActive(id, active);
+      if (!res.ok) fail(res);
       return res.profile;
     },
+    async remove(id, opts) {
+      const res = await deleteUser(id, opts);
+      if (!res.ok) fail(res);
+    },
+
   },
 
   coachNotes: {
@@ -444,10 +492,10 @@ export const supabaseDataSource: DataSource = {
       ) as Row[];
       return rows.map(toAccessRequest);
     },
-    async approve(id) {
-      const res = await approveAccessRequest(id);
-      if (!res.ok) throw new Error(res.error);
-      return { profile: res.profile, activationLink: null };
+    async approve(id, opts) {
+      const res = await approveAccessRequest(id, opts);
+      if (!res.ok) fail(res);
+      return { profile: res.profile, activationLink: null, linked: res.linked };
     },
     async reject(id, reason) {
       const user = await sessionUser();
@@ -460,6 +508,46 @@ export const supabaseDataSource: DataSource = {
           .single(),
       );
       return toAccessRequest(row as Row);
+    },
+  },
+
+  team: {
+    async list() {
+      const rows = check(await sb().from("profiles").select("*").in("role", ["coach", "admin"]).order("full_name")) as Row[];
+      const clients = check(await sb().from("profiles").select("coach_id").eq("role", "client")) as Row[];
+      return rows.map((r) => {
+        const p = toProfile(r);
+        return { ...p, status: accountStatus(p), clientCount: clients.filter((c) => c.coach_id === p.id).length };
+      });
+    },
+    async invite(input) {
+      const res = await inviteStaff(input);
+      if (!res.ok) fail(res);
+      return { profile: res.profile, activationLink: null };
+    },
+    async resend(profileId) {
+      const res = await resendInvite(profileId);
+      if (!res.ok) throw new Error(res.error);
+      return { activationLink: null };
+    },
+    async createCode(profileId) {
+      const res = await createInviteCode(profileId);
+      if (!res.ok) throw new Error(res.error);
+      return { code: res.code, expiresAt: res.expiresAt };
+    },
+    async setRole(profileId, role) {
+      const res = await setStaffRole(profileId, role);
+      if (!res.ok) throw new Error(res.error);
+      const row = check(await sb().from("profiles").select("*").eq("id", profileId).single());
+      return toProfile(row as Row);
+    },
+    async deactivate(profileId, reassignTo) {
+      const res = await deactivateStaff(profileId, reassignTo);
+      if (!res.ok) throw new Error(res.error);
+    },
+    async reactivate(profileId) {
+      const res = await reactivateStaff(profileId);
+      if (!res.ok) throw new Error(res.error);
     },
   },
 

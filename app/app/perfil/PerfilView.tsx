@@ -1,9 +1,10 @@
 "use client";
 
+import { ProfileAvatar } from "@/components/ProfileAvatar";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useClientRoutine } from "@/components/client/useClientRoutine";
-import { PickClientNotice, ViewAsBanner } from "@/components/client/ViewAsBanner";
+import { PickClientNotice, ViewAsBanner, ViewAsNoAccess } from "@/components/client/ViewAsBanner";
 import { Loading } from "@/components/Loading";
 import { useSession } from "@/components/SessionProvider";
 import { Avatar, PillButton, Stripe } from "@/components/ui";
@@ -25,6 +26,7 @@ export function PerfilView() {
   const { signOut } = useSession();
 
   if (r.viewingAs && !r.clientId) return <PickClientNotice />;
+  if (r.noAccess) return <ViewAsNoAccess />;
   if (r.loading) return <Loading />;
   const client = r.data?.client;
   if (!client) return <Loading />;
@@ -69,7 +71,7 @@ export function PerfilView() {
                   href="/app/profe"
                   className="inline-flex min-h-[44px] items-center gap-2 underline decoration-accent decoration-2 underline-offset-4"
                 >
-                  <Avatar name={coach.fullName} size="xs" pro />
+                  <ProfileAvatar avatarPath={coach.avatarPath} name={coach.fullName} size="xs" pro />
                   {coach.fullName}
                   {coach.title && ` · ${coach.title.split(" ")[0]}`}
                 </Link>

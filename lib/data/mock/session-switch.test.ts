@@ -39,7 +39,7 @@ describe("cambio de sesión en la misma pestaña", () => {
     const p = await panel();
     expect(p.clients).toBe(8);
     expect(p.routines).toBeGreaterThan(2);
-    expect(p.requests).toBe(2);
+    expect(p.requests).toBe(1); // la que lo eligió; la «Todavía no tengo» la ve el admin
     expect((await data.auth.getUser())?.role).toBe("coach");
   });
 

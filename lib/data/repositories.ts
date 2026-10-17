@@ -1,5 +1,6 @@
 import type { AccessRequestInput, SubmitResult } from "@/lib/access/rules";
 import type {
+  AccountStatus,
   AccessRequest,
   AccessRequestStatus,
   CoachNote,
@@ -25,20 +26,36 @@ export type NewClientInput = {
   caseType?: Profile["caseType"];
   caseDetail?: string | null;
   goal?: string | null;
+  /** Solo lo usa el admin (elige el profe). Si lo crea un profe, queda asignado a él. */
   coachId?: string | null;
 };
 
-export type ProfilePatch = Partial<Omit<Profile, "id" | "createdAt" | "role">>;
+/** Datos editables de un perfil. Rol y estado (activación/desactivación) NO: van por `team`. */
+export type ProfilePatch = Partial<Omit<Profile, "id" | "createdAt" | "role" | "activatedAt" | "disabledAt">>;
 
 export interface ProfilesRepo {
   get(id: string): Promise<Profile | null>;
   listClients(): Promise<Profile[]>;
   listStaff(): Promise<Profile[]>;
   update(id: string, patch: ProfilePatch): Promise<Profile>;
-  /** Alta de cliente. En Supabase se hace por server action (invitación por email). */
+  /**
+   * Alta de cliente. En Supabase se hace por server action (invitación por email).
+   * Email repetido (sin importar mayúsculas) → `DuplicateEmailError` (lib/data/errors.ts).
+   */
   createClient(input: NewClientInput): Promise<Profile>;
-  /** Alta de profe o admin. Solo admin (server action en Supabase). */
-  createStaff(input: { fullName: string; email: string; title?: string | null; role?: "coach" | "admin" }): Promise<Profile>;
+  /**
+   * Desactivar / reactivar un cliente (admin o su profe). Desactivado: no entra, se oculta de las listas,
+   * el historial queda y el email sigue reservado. Para profes: `team.deactivate`.
+   */
+  setClientActive(id: string, active: boolean): Promise<Profile>;
+  /**
+   * Eliminar definitivamente. Admin: a cualquiera menos a sí mismo. Profe: solo a sus propios clientes
+   * (los de otros profes dan «no encontrado»). `confirmName` tiene que coincidir con el nombre.
+   * Cliente: borra cuenta, perfil, rutinas, sesiones, observaciones y solicitudes.
+   * Profe: exige `reassignTo` si tiene clientes; sus ejercicios y plantillas pasan al admin.
+   * Después el email queda libre.
+   */
+  remove(id: string, opts: { confirmName: string; reassignTo?: string | null }): Promise<void>;
 }
 
 export interface CoachNotesRepo {
@@ -59,7 +76,10 @@ export interface ExercisesRepo {
 }
 
 export interface RoutinesRepo {
-  /** Staff: todas. Cliente: solo las suyas publicadas (lo hace cumplir RLS en Supabase). */
+  /**
+   * Admin: todas. Profe: las de sus clientes, sus borradores y todas las plantillas.
+   * Cliente: solo las suyas publicadas. (RLS en Supabase, lib/access/scope.ts en mock.)
+   */
   list(): Promise<Routine[]>;
   listForClient(clientId: string): Promise<Routine[]>;
   getTree(id: string): Promise<RoutineTree | null>;
@@ -103,9 +123,41 @@ export interface AccessRequestsRepo {
   submit(input: AccessRequestInput): Promise<SubmitResult>;
   /** Staff: solicitudes (por defecto, pendientes). */
   list(status?: AccessRequestStatus): Promise<AccessRequest[]>;
-  /** Staff: crea el cliente, lo asigna al profe y manda la invitación. En mock devuelve el link de activación. */
-  approve(id: string): Promise<{ profile: Profile; activationLink: string | null }>;
+  /**
+   * Profe/admin: crea el cliente y manda la invitación. En mock devuelve el link de activación.
+   * El profe se lo queda; el admin puede elegir a qué profe asignarlo (`coachId`).
+   * Si el email ya tiene cuenta → `DuplicateEmailError`; con `linkExisting` la solicitud se vincula a esa
+   * cuenta (no se crea otra). `profile` es null si quien aprueba no puede ver esa cuenta.
+   */
+  approve(
+    id: string,
+    opts?: { coachId?: string | null; linkExisting?: boolean },
+  ): Promise<{ profile: Profile | null; activationLink: string | null; linked: boolean }>;
   reject(id: string, reason: string | null): Promise<AccessRequest>;
+}
+
+export type StaffMember = Profile & { status: AccountStatus; clientCount: number };
+
+export type InviteStaffInput = {
+  fullName: string;
+  email: string;
+  title?: string | null;
+  phone?: string | null;
+  role: "coach" | "admin";
+};
+
+/** Equipo (profes y admins). Todo es solo para admin; RLS y los server actions lo hacen cumplir. */
+export interface TeamRepo {
+  list(): Promise<StaffMember[]>;
+  /** Alta + invitación por mail (lleva a /activar). En mock devuelve el link. */
+  invite(input: InviteStaffInput): Promise<{ profile: Profile; activationLink: string | null }>;
+  resend(profileId: string): Promise<{ activationLink: string | null }>;
+  /** Código de un solo uso, atado al email, vence en 48 h. Se muestra una sola vez. */
+  createCode(profileId: string): Promise<{ code: string; expiresAt: string }>;
+  setRole(profileId: string, role: "coach" | "admin"): Promise<Profile>;
+  /** Pierde el acceso al instante. Si tiene clientes, hay que pasar a quién se reasignan. */
+  deactivate(profileId: string, reassignTo: string | null): Promise<void>;
+  reactivate(profileId: string): Promise<void>;
 }
 
 export type SignInResult = { ok: true; user: SessionUser } | { ok: false; error: string };
@@ -121,6 +173,8 @@ export interface AuthRepo {
    * Supabase: la sesión ya viene del link (/auth/callback). Mock: valida el token simulado.
    */
   activate(token: string | null): Promise<SessionUser | null>;
+  /** /activar con código (cuando el mail no llega): crea la contraseña y deja la sesión iniciada. */
+  redeemCode(email: string, code: string, password: string): Promise<{ ok: true; user: SessionUser } | { ok: false; error: string }>;
 }
 
 export interface DataSource {
@@ -134,4 +188,5 @@ export interface DataSource {
   views: ViewsRepo;
   videos: VideosRepo;
   accessRequests: AccessRequestsRepo;
+  team: TeamRepo;
 }

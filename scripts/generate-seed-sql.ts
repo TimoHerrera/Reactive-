@@ -40,10 +40,13 @@ begin;
 
 push("-- ── Usuarios (auth) ─────────────────────────────────────────────");
 for (const p of db.profiles) {
+  // Invitación pendiente: sin contraseña ni email confirmado (entra por /activar).
+  const pwd = p.activatedAt ? `extensions.crypt(${q(DEMO_PASSWORD)}, extensions.gen_salt('bf'))` : "''";
+  const confirmed = p.activatedAt ? "now()" : "null";
   push(`insert into auth.users (instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
   raw_app_meta_data, raw_user_meta_data, created_at, updated_at, confirmation_token, email_change, email_change_token_new, recovery_token)
 values ('00000000-0000-0000-0000-000000000000', ${q(p.id)}, 'authenticated', 'authenticated', ${q(p.email)},
-  extensions.crypt(${q(DEMO_PASSWORD)}, extensions.gen_salt('bf')), now(),
+  ${pwd}, ${confirmed},
   '{"provider":"email","providers":["email"]}', jsonb_build_object('full_name', ${q(p.fullName)}), now(), now(), '', '', '', '')
 on conflict (id) do nothing;
 insert into auth.identities (id, user_id, provider_id, identity_data, provider, last_sign_in_at, created_at, updated_at)
@@ -55,8 +58,8 @@ push("\n-- ── Perfiles ─────────────────�
 // Primero staff (los clientes referencian coach_id).
 const ordered = [...db.profiles].sort((a, b) => (a.role === "client" ? 1 : 0) - (b.role === "client" ? 1 : 0));
 for (const p of ordered) {
-  push(`insert into public.profiles (id, role, full_name, email, phone, title, sport, case_type, case_detail, goal, coach_id, client_since, created_at)
-values (${q(p.id)}, ${q(p.role)}, ${q(p.fullName)}, ${q(p.email)}, ${q(p.phone)}, ${q(p.title)}, ${q(p.sport)}, ${q(p.caseType)}, ${q(p.caseDetail)}, ${q(p.goal)}, ${q(p.coachId)}, ${date(p.clientSince)}, ${ts(p.createdAt)})
+  push(`insert into public.profiles (id, role, full_name, email, phone, title, sport, case_type, case_detail, goal, coach_id, client_since, created_at, bio, avatar_path, activated_at, disabled_at)
+values (${q(p.id)}, ${q(p.role)}, ${q(p.fullName)}, ${q(p.email)}, ${q(p.phone)}, ${q(p.title)}, ${q(p.sport)}, ${q(p.caseType)}, ${q(p.caseDetail)}, ${q(p.goal)}, ${q(p.coachId)}, ${date(p.clientSince)}, ${ts(p.createdAt)}, ${q(p.bio)}, ${q(p.avatarPath)}, ${ts(p.activatedAt)}, ${ts(p.disabledAt)})
 on conflict (id) do nothing;`);
 }
 

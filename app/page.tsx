@@ -4,7 +4,7 @@ export default function SplashPage() {
   return (
     <main className="phone bg-grid flex flex-col overflow-hidden px-gutter pb-8 pt-16">
       <div className="flex flex-1 flex-col items-center justify-center">
-        <LogoMark className="h-[124px] w-[112px] text-ink" />
+        <LogoMark className="h-[106px] w-[124px] text-ink" />
         <Wordmark className="mt-10 text-ink" />
       </div>
 

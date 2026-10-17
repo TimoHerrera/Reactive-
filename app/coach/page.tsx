@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo } from "react";
+import { CoachFilterChips, useCoachFilter } from "@/components/coach/CoachFilter";
 import { CoachMenu } from "@/components/coach/CoachMenu";
 import { InlineLoading } from "@/components/Loading";
 import { QueryError } from "@/components/QueryError";
@@ -10,6 +12,7 @@ import { cn } from "@/lib/cn";
 import { buildActivity, greeting, type ActivityKind } from "@/lib/coach/activity";
 import { data, hasVideo, type RoutineTree } from "@/lib/data";
 import { useQuery } from "@/lib/hooks";
+import { clientIdsOfCoach, routineMatchesCoach } from "@/lib/access/scope";
 import { clientRoutineFilter, routineStatus } from "@/lib/routine/status";
 
 const DOT: Record<ActivityKind, string> = {
@@ -30,7 +33,9 @@ function SheetIcon() {
 
 export default function PanelPage() {
   const { user } = useSession();
-  const q = useQuery(async () => {
+  const filter = useCoachFilter();
+  // La capa de datos ya trae solo lo del profe (o todo, si es admin). Acá se aplica el filtro del admin.
+  const raw = useQuery(async () => {
     const since = new Date(Date.now() - 8 * 86_400_000).toISOString();
     const [clients, routines, exercises, sessions, views, requests] = await Promise.all([
       data.profiles.listClients(),
@@ -44,7 +49,19 @@ export default function PanelPage() {
     const ids = [...new Set(sessions.map((s) => s.routineId))];
     const trees = new Map<string, RoutineTree>();
     for (const t of await Promise.all(ids.map((id) => data.routines.getTree(id)))) if (t) trees.set(t.id, t);
+    return { clients, routines, exercises, sessions, views, requests, checks, trees };
+  }, []);
 
+  const derived = useMemo(() => {
+    if (!raw.data) return undefined;
+    const { exercises, checks, trees } = raw.data;
+    const scope = clientIdsOfCoach(raw.data.clients, filter.coachId);
+    const inScope = (clientId: string) => !scope || scope.has(clientId);
+    const clients = raw.data.clients.filter((c) => inScope(c.id) && !c.disabledAt);
+    const routines = raw.data.routines.filter((r) => routineMatchesCoach(r, scope, filter.coachId));
+    const sessions = raw.data.sessions.filter((s) => inScope(s.clientId));
+    const views = raw.data.views.filter((v) => inScope(v.clientId));
+    const requests = raw.data.requests.filter((r) => !filter.coachId || r.requestedCoachId === filter.coachId);
     const byClient = (id: string) => routines.filter((r) => r.clientId === id);
     return {
       activos: clients.filter((c) => clientRoutineFilter(byClient(c.id)) !== "sin-rutina").length,
@@ -62,7 +79,8 @@ export default function PanelPage() {
         exerciseNames: new Map(exercises.map((e) => [e.id, e.name])),
       }),
     };
-  }, []);
+  }, [raw.data, filter.coachId]);
+  const q = { ...raw, data: derived };
 
   const firstName = user?.fullName.split(" ")[0] ?? "";
   const metrics = [
@@ -76,7 +94,7 @@ export default function PanelPage() {
       <header className="bg-grid px-gutter pb-5 pt-8">
         <div className="flex items-center justify-between">
           <span className="flex items-center gap-2">
-            <LogoMark className="h-7 w-6 text-ink" />
+            <LogoMark className="h-6 w-7 text-ink" />
             <span className="label">Modo profe</span>
           </span>
           <CoachMenu />
@@ -84,6 +102,8 @@ export default function PanelPage() {
         <h1 className="display mt-4 text-display-xl text-title">Panel</h1>
         <p className="mt-1 text-body text-title">{greeting(firstName)} Esto es lo que pasa hoy.</p>
       </header>
+
+      <CoachFilterChips filter={filter} className="pb-3" />
 
       <div className="space-y-3 px-gutter">
         {q.error && !q.data && <QueryError what="el panel" onRetry={() => void q.reload()} />}
@@ -122,6 +142,16 @@ export default function PanelPage() {
           </span>
           <span aria-hidden="true" className="shrink-0 text-[1.25rem]">→</span>
         </Link>
+
+        {user?.role === "admin" && (
+          <Link
+            href="/coach/equipo"
+            className="flex min-h-[56px] items-center justify-between gap-3 rounded-lg border border-line bg-surface px-4 py-3 hover:bg-surface-2"
+          >
+            <span className="text-title-sm">Equipo · profes y accesos</span>
+            <span aria-hidden="true" className="shrink-0 text-[1.25rem]">→</span>
+          </Link>
+        )}
 
         <PillButton href="/coach/rutinas/nueva" arrow block>
           + Nueva rutina

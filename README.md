@@ -26,6 +26,7 @@ npm run dev                  # http://localhost:3000
 | `npm run lint` | ESLint |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm test` | Tests unitarios (Vitest) |
+| `npm run test:e2e` | E2E con Playwright (build de producción en modo mock, 390 px) |
 | `npm run db:seed-sql` | Regenera `supabase/seed.sql` desde `lib/data/seed.ts` |
 
 ## Modo mock (sin Supabase)
@@ -41,6 +42,7 @@ Con `NEXT_PUBLIC_DATA_SOURCE=mock` la app usa datos de demo guardados en el `loc
 ## Videos
 
 - El método principal es **subir el archivo desde la app** (galería o cámara). YouTube es un link opcional.
+- **Grabar con la cámara** (PC y celular, `components/coach/CameraRecorder.tsx`): «Habilitar cámara» pide el permiso del navegador (cámara y micrófono), muestra la imagen en vivo, graba hasta el máximo de segundos con cuenta, deja cambiar entre cámara frontal y trasera, revisar la toma y «Usar este video» (sigue el mismo camino que una subida). Si el permiso está bloqueado, explica cómo habilitarlo según el dispositivo (PC, Android, iPhone) y ofrece la app de cámara del celular o elegir un video ya grabado. Necesita https (en Vercel ya está) o localhost.
 - Se aceptan `.mp4`, `.mov` y `.webm`, hasta `NEXT_PUBLIC_MAX_VIDEO_MB` (50 por defecto) y `NEXT_PUBLIC_MAX_VIDEO_SECONDS` (60).
 - Antes de subir se valida el archivo y se genera la miniatura en el navegador (frame a 1 s).
 - En Supabase la subida es reanudable (TUS) al bucket privado `exercise-videos`, y se reproduce con URLs firmadas de 10 minutos.
@@ -53,6 +55,16 @@ Con `NEXT_PUBLIC_DATA_SOURCE=mock` la app usa datos de demo guardados en el `loc
 - `lib/data/index.ts` elige según `NEXT_PUBLIC_DATA_SOURCE`. Las pantallas solo usan `data.*`.
 - Lo que necesita la service role key (invitar clientes, sumar profes) está en server actions: `app/actions/clients.ts`.
 - `middleware.ts` protege `/app` (cliente; el staff también puede entrar para «Ver como») y `/coach` (solo profe/admin).
+
+## Quién ve qué
+
+Las reglas están en `lib/access/scope.ts` (las usa el mock) y en RLS (`0007_coach_scope.sql`), así la demo se comporta igual que producción.
+
+- **Profe**: ve y edita solo sus clientes (`coach_id` = él) y lo que cuelga de ellos: rutinas, sesiones, vistas y observaciones. También ve las solicitudes de acceso que lo eligieron. Panel, Clientes, Rutinas y «Ver como» se filtran igual. Si abre por URL un cliente o una rutina ajena, ve «No tenés acceso».
+- **Compartido**: la biblioteca de ejercicios y videos, y las plantillas. Cualquier profe las usa o las duplica; editarlas o borrarlas, solo su autor o el admin.
+- **Admin**: ve todo, con el filtro «Profe: Todos / Nico / …» en Panel, Clientes y Rutinas. Es el único que reasigna clientes (Editar datos → Profe) y el que recibe las solicitudes «Todavía no tengo» (al aprobar elige a qué profe asignarla).
+- **Alta de cliente**: queda asignado al profe que lo crea; el admin elige el profe.
+- **Autor**: `routines.created_by` es siempre el usuario logueado; lo fija la base con un trigger y en mock la capa de datos, nunca el formulario. Si la edita otra persona se guarda `updated_by` y la clienta ve «Cargada por X · editada por Y».
 
 ## Supabase
 
@@ -85,7 +97,7 @@ npx supabase link --project-ref <ref-del-proyecto>
 npx supabase db push
 ```
 
-Opción B, a mano: en **SQL Editor**, pegá y ejecutá en orden los archivos de `supabase/migrations/` (`0001_schema.sql` → `0004_functions.sql`).
+Opción B, a mano: en **SQL Editor**, pegá y ejecutá en orden los archivos de `supabase/migrations/` (`0001_schema.sql` → `0008_accounts.sql`).
 
 ### 3. Datos de demo (opcional, SOLO staging)
 
@@ -93,14 +105,17 @@ Opción B, a mano: en **SQL Editor**, pegá y ejecutá en orden los archivos de 
 
 ### 4. Crear el primer admin
 
-1. **Authentication → Users → Add user → Create new user**: email y contraseña del admin, con «Auto Confirm User» tildado.
-2. En **SQL Editor**:
-   ```sql
-   insert into public.profiles (id, role, full_name, email)
-   select id, 'admin', 'Nombre Apellido', email
-   from auth.users where email = 'admin@tu-dominio.com';
-   ```
-3. Ingresá a la app con ese usuario. Desde ahí el admin suma profes, y los profes invitan clientes con «+ Cliente».
+No hay PIN fijo ni registro público de profes. El primer admin se crea desde tu compu con la service role (en `.env.local`, con `NEXT_PUBLIC_DATA_SOURCE=supabase`):
+
+```bash
+npm run create-admin -- admin@tu-dominio.com "Nombre Apellido"
+```
+
+- Si el email ya tiene usuario, lo **promueve** a admin (y lo reactiva si estaba desactivado).
+- Si no existe, le manda la **invitación por mail** (→ `/activar` → crea su contraseña → `/coach`) e imprime un **código de respaldo** de un solo uso (48 h) por si el mail no llega.
+- En modo mock no toca nada: la demo ya trae un admin (`admin@reactive.test`, botón «Admin» del acceso rápido).
+
+Desde ahí el admin suma el resto del equipo en **Equipo**, y los profes invitan clientes con «+ Cliente».
 
 ## Importar Excel
 
@@ -113,16 +128,67 @@ Opción B, a mano: en **SQL Editor**, pegá y ejecutá en orden los archivos de 
 ## Primera vez / pedir acceso
 
 - En el login, «¿Primera vez? Pedile tu acceso a tu profe» lleva a `/solicitar-acceso`: nombre, email, WhatsApp, profe, tipo de caso y mensaje.
-- El pedido queda en `access_requests` (status `pending`). El anónimo solo puede insertar; leen y revisan coach/admin. Anti-spam: honeypot, 3 pedidos por email por día y 5 por IP por hora (hash de IP, nunca en claro).
+- El pedido queda en `access_requests` (status `pending`). El anónimo solo puede insertar; la lee y la revisa el profe elegido (las «Todavía no tengo», el admin). Anti-spam: honeypot, 3 pedidos por email por día y 5 por IP por hora (hash de IP, nunca en claro).
 - El profe lo ve en el Panel («Solicitudes de acceso (N)») y en Clientes → «Solicitudes»: **Aprobar** crea el cliente asignado al profe y manda la invitación; **Rechazar** con motivo opcional.
 - La invitación lleva a `/activar` («Creá tu contraseña») y de ahí a Hoy.
 - **Modo mock:** al aprobar, el profe ve el link `/activar?token=…` (simula el mail). La contraseña creada queda guardada en ese navegador.
+
+## Equipo (profes y admins)
+
+- **Equipo** (`/coach/equipo`, solo admin; se entra desde el Panel o el menú del avatar): lista de profes con estado (activo / invitación pendiente / desactivado) y cantidad de clientes.
+- **+ Profe**: nombre, email, título, WhatsApp y rol (profe o admin). Manda la invitación por mail → `/activar` → crea su contraseña → `/coach`.
+- En la ficha de cada profe: **reenviar invitación**, **generar código** (un solo uso, atado a ese email, vence en 48 h; se guarda hasheado y se muestra una sola vez; se canjea en `/activar` → «¿Tenés un código?»), editar datos, cambiar rol y **desactivar** (pierde el acceso al instante; si tiene clientes, hay que elegir a qué profe pasarlos; el historial queda) o reactivar.
+- **Mi perfil** (`/coach/perfil`): nombre, título, foto (o iniciales), WhatsApp y bio corta (280). Es lo que ve el cliente en «Tu profe → Ver perfil». Cada profe edita el suyo; el admin, el de todos.
+- **Permisos (RLS, `0006_team.sql`)**: solo un admin crea, edita o desactiva profes y cambia roles; nadie cambia su propio rol; un usuario desactivado no lee ni escribe nada (políticas restrictivas en todas las tablas y en Storage, y además se le bloquea el login). Los códigos (`invite_codes`) solo los toca la service role.
+- **Modo mock:** la invitación muestra el link `/activar?token=…` o el código en pantalla. Demo: Caro P. (profe activa) y Lu M. (invitación pendiente).
+
+## Usuarios: un email por persona, desactivar y eliminar
+
+- **Email único:** se guarda normalizado (trim + minúsculas). En la base hay un índice único sobre `lower(email)` en `profiles` y otro para las solicitudes pendientes (`0008_accounts.sql`); el mock valida lo mismo. Crear un cliente o un profe con un email que ya existe da «Ya existe un usuario con ese email» + «Ver ficha» (si podés verla) y no crea el duplicado.
+- **Pedir acceso:**
+  - cuenta activa → «Ya tenés cuenta: ingresá o recuperá tu contraseña»;
+  - cuenta desactivada → «Tu cuenta está pausada, escribinos por WhatsApp»;
+  - solicitud pendiente → se avisa y no se duplica.
+  - Si al aprobar el email ya tiene cuenta, se ofrece **vincular** la solicitud a ese usuario (`linked_profile_id`) en vez de crear otro.
+- **Desactivar** (admin, o el profe con sus propios clientes): bloquea el login al instante, oculta a la persona de las listas (filtro «Desactivados» en Clientes y Equipo) y conserva el historial. Se vuelve con «Reactivar». El email sigue reservado.
+- **Eliminar definitivamente** (escribiendo el nombre de la persona para confirmar). El admin elimina a cualquiera menos a sí mismo; el profe, solo a sus propios clientes (los de otros profes ni le aparecen: por URL ven «No tenés acceso»):
+  - Cliente: borra la cuenta de auth, el perfil, las rutinas, las sesiones, las observaciones y las solicitudes.
+  - Profe: primero obliga a reasignar sus clientes. Sus ejercicios y plantillas pasan al admin.
+  - En los dos casos, el email queda libre. Server action: `app/actions/accounts.ts`.
+- **Sesión abierta:** si a alguien lo desactivan o lo eliminan mientras usa la app, queda deslogueado en su próxima acción: al pedir datos, al navegar o al volver a la pestaña (`onSessionRevoked`).
+- **Modo mock:** «Restablecer datos de demo» (menú del avatar, solo admin) vuelve al seed y borra usuarios, contraseñas y videos de prueba de ese navegador.
+
+## Deploy (Vercel)
+
+- Proyecto `reactiveapp` en el team `reactive4`. Cada PR genera un preview; `main` es producción.
+- Producción: **https://reactiveapp-reactive4.vercel.app** (hoy en modo mock: sin variables de entorno usa los datos de demo).
+- Para pasar a Supabase: cargar en Vercel las variables de `.env.example` con `NEXT_PUBLIC_DATA_SOURCE=supabase` y seguir la sección «Supabase».
+- Dominio propio (opcional): Vercel → Settings → Domains.
+
+## Tests E2E (Playwright)
+
+```bash
+npx playwright install chromium   # la primera vez
+npm run test:e2e                   # build + next start en :3200, modo mock
+E2E_BASE_URL=https://<preview>.vercel.app npm run test:e2e   # contra un preview de Vercel
+```
+
+Cubren:
+- **Flujo clave:** el profe importa `docs/ejemplos/readaptacion_martina_f2.xlsx`, resuelve «RDL c/ mancuernas», «Copenhague» y «Salto al cajón unipodal», publica para Martina; ella ve la rutina, abre el video de «Sentadilla goblet» y vuelve al mismo día y a la misma posición de scroll.
+- **Pedir acceso:** aviso de cuenta existente, pedido nuevo, aprobación del profe, activación con el link, Hoy vacío y login con la contraseña creada.
+- **Cambio de usuario:** cliente → logout → profe (el Panel carga sus datos, 3 veces seguidas) y profe → logout → cliente (ve su rutina y nada del profe).
+- **Equipo:** el admin invita a un profe → el profe activa su cuenta con el link → ve el Panel; activación con código; un profe no puede entrar a «Equipo».
+- **Cámara** (`e2e/camara.spec.ts`): con el permiso dado graba, revisa y usa el video; sin permiso muestra «Habilitar cámara»; bloqueada explica cómo habilitarla. Usa el Chrome instalado (perfil temporal y cámara simulada), porque el Chromium liviano de Playwright no tiene cámara.
+- **Dos profes:** Nico carga una rutina → la clienta ve «Cargada por Nico R.»; Jano (nuevo) no ve los clientes de Nico ni los abre por URL, pero usa ejercicios y plantillas; el admin ve a todos y filtra por profe.
+- **Usuarios:** email repetido (con otras mayúsculas) no se crea y ofrece «Ver ficha»; el profe desactiva a su cliente (no entra, se oculta, filtro «Desactivados», «Reactivar»); el admin elimina un cliente escribiendo su nombre y restablece la demo; el profe elimina a su propio cliente y Caro no ve ni puede borrar a los de Nico; eliminar a un profe con clientes exige reasignarlos.
+
+El reporte HTML queda en `playwright-report/` (`npx playwright show-report`).
 
 ## Rutas útiles
 
 - `/`: splash · `/login` · `/recuperar` · `/nueva-contrasena` · `/solicitar-acceso` · `/activar`
 - `/app`: cliente (Hoy · Mi Rutina · Ejercicios · Perfil)
-- `/coach`: profe/admin (Panel · Clientes · Rutinas · Ejercicios)
+- `/coach`: profe/admin (Panel · Clientes · Rutinas · Ejercicios) · `/coach/perfil` · `/coach/equipo` (admin)
 - `/dev/ui`: catálogo de componentes del design system
 
 ## Estado por fase
@@ -134,4 +200,4 @@ Opción B, a mano: en **SQL Editor**, pegá y ejecutá en orden los archivos de 
 - [x] **F4**: carga manual de rutinas (3 pasos, plantillas, duplicar y editar) + lista de Rutinas
 - [x] **F5**: importación de Excel (plantilla, lectura, errores, matching con alias y vista previa)
 - [x] **F6**: Panel, Clientes (ficha, alta, edición), Profes, «Primera vez / pedir acceso» y pulido
-- [ ] F7: E2E con Playwright y deploy
+- [x] **F7**: E2E con Playwright (flujo clave, pedir acceso, cambio de usuario, equipo), gestión del equipo (Equipo, perfil del profe, `create-admin`, RLS de desactivados) y deploy en Vercel
