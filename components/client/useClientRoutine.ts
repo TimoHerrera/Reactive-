@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { data, type ItemCheck, type Profile, type Routine, type RoutineTree, type WorkoutSession } from "@/lib/data";
+import { data, type ItemCheck, type Profile, type Routine, type RoutineTree, type SetLog, type WorkoutSession } from "@/lib/data";
+import type { SetLogInput } from "@/lib/data/repositories";
 import { addDays, startOfWeek, todayISO } from "@/lib/dates";
 import { useQuery } from "@/lib/hooks";
 import { itemsOfDay } from "@/lib/routine/locate";
@@ -19,6 +20,8 @@ export type ClientRoutineData = {
   routines: Routine[];
   sessions: WorkoutSession[];
   checks: ItemCheck[];
+  /** Registro real («¿Cómo te fue?») de las sesiones cargadas. */
+  setLogs: SetLog[];
 };
 
 const PENDING = "pending-session";
@@ -44,12 +47,13 @@ export function useClientRoutine() {
         : Promise.resolve([] as WorkoutSession[]),
     ]);
     const staffProfile = (id: string | null | undefined) => (id ? (id === coach?.id ? Promise.resolve(coach) : data.profiles.get(id)) : Promise.resolve(null));
-    const [checks, author, editor] = await Promise.all([
+    const [checks, setLogs, author, editor] = await Promise.all([
       data.sessions.listChecks(sessions.map((s) => s.id)),
+      data.sessions.listSetLogs(sessions.map((s) => s.id)),
       staffProfile(routine?.createdBy),
       staffProfile(routine?.updatedBy && routine.updatedBy !== routine.createdBy ? routine.updatedBy : null),
     ]);
-    return { client, coach, routine, routines, sessions, checks, author, editor };
+    return { client, coach, routine, routines, sessions, checks, setLogs, author, editor };
   }, [clientId], { live: false });
 
   // Semana a semana (lunes a domingo): si la app quedó abierta (o en segundo plano) y empezó otra
@@ -91,7 +95,8 @@ export function useClientRoutine() {
   const queues = useRef(new Map<string, Promise<void>>());
 
   const toggleItem = useCallback(
-    (dayId: string, itemId: string) => {
+    /** `logs`: registro opcional del panel «¿Cómo te fue?» (solo al marcar). */
+    (dayId: string, itemId: string, logs?: SetLogInput[]) => {
       const snapshot = dataRef.current;
       if (!snapshot?.routine || !clientId || viewingAs) return;
       const day = snapshot.routine.days.find((d) => d.id === dayId);
@@ -128,6 +133,11 @@ export function useClientRoutine() {
           }));
         }
         await data.sessions.setCheck(sid, itemId, !wasChecked);
+        if (!wasChecked && logs?.length) {
+          const saved = await data.sessions.saveSetLogs(sid, itemId, logs);
+          const s = sid;
+          update((prev) => ({ ...prev, setLogs: [...prev.setLogs.filter((l) => !(l.sessionId === s && l.itemId === itemId)), ...saved] }));
+        }
         // ¿Quedó completo el día?
         const all = await data.sessions.listChecks([sid]);
         const total = itemsOfDay(day).length;

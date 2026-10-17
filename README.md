@@ -97,7 +97,7 @@ npx supabase link --project-ref <ref-del-proyecto>
 npx supabase db push
 ```
 
-Opción B, a mano: en **SQL Editor**, pegá y ejecutá en orden los archivos de `supabase/migrations/` (`0001_schema.sql` → `0008_accounts.sql`).
+Opción B, a mano: en **SQL Editor**, pegá y ejecutá en orden los archivos de `supabase/migrations/` (`0001_schema.sql` → `0009_planificador.sql`).
 
 ### 3. Datos de demo (opcional, SOLO staging)
 
@@ -119,11 +119,20 @@ Desde ahí el admin suma el resto del equipo en **Equipo**, y los profes invitan
 
 ## Importar Excel
 
-- Plantilla: columnas `Día | Bloque | Orden | Ejercicio | Series | Reps | Carga | Descanso | Notas` (se descarga desde la app).
+- Plantilla: columnas `Día | Bloque | Orden | Ejercicio | Series | Reps | Carga | Descanso | RPE | RIR | Observaciones` (se descarga desde la app). **RPE y RIR son opcionales**: los Excel viejos sin esas columnas se siguen aceptando. «Notas» y «Observaciones» son sinónimos.
+- RPE (1–10) y RIR (0–10) aceptan un valor o un rango (`7`, `7-8`, `7 a 8`); se guardan normalizados. Si no es válido («muy duro») se avisa con la fila y se importa como texto.
 - También se lee el formato **por bloques**: una hoja por día; cada bloque empieza con una fila `Bloque 1 | Repeticiones | Series | Carga | Pausa`, sigue una fila por ejercicio y una fila con la pausa («2 minutos») que se toma como descanso del bloque. El texto suelto fuera de los bloques se avisa y no se importa.
 - Se aceptan `.xlsx` y `.csv` de hasta 5 MB. Los encabezados se comparan sin mayúsculas ni acentos.
 - Matching contra la biblioteca: igualdad exacta con el nombre o un alias → reconocido; parecido (fuse.js, `DEFAULT_THRESHOLD` en `lib/import/match.ts`) → «¿Quisiste decir…?»; si no, no encontrado. Al vincular, el texto original se guarda como alias.
 - Planillas de prueba en `docs/ejemplos/` (regenerar con `npx tsx scripts/generate-import-examples.ts`).
+
+## Planificador: RPE, RIR y registro real (F8)
+
+- Cada ejercicio de la rutina tiene **RPE y RIR objetivo** (`routine_items.rpe_target` / `rir_target`, texto para aceptar rangos). Las notas se muestran como «Observaciones».
+- Cliente: la card muestra «RPE 8 · RIR 2» con un «?» que explica qué es cada cosa.
+- **Registro real**: al marcar un ejercicio se abre «¿Cómo te fue?» (opcional): una fila por serie con reps y carga planificadas (editables), RPE real 1–10 y un comentario. «Saltear» lo marca igual. Desmarcar es directo. Tabla `set_logs` (PK `session_id, item_id, set_number`); el comentario va en la serie 1.
+- Profe: pestaña **Registro** en la ficha del cliente (planificado vs. hecho, por sesión) con aviso **RPE ↑** si el RPE real supera al tope del objetivo por 2 o más. En Actividad reciente: «Martina marcó RPE 9 en Sentadilla goblet (objetivo 7)».
+- RLS (`0009_planificador.sql`): escribe solo el cliente dueño de la sesión (RPC `save_set_logs`, atómico); leen él, su profe y el admin.
 
 ## Primera vez / pedir acceso
 
@@ -201,3 +210,6 @@ El reporte HTML queda en `playwright-report/` (`npx playwright show-report`).
 - [x] **F5**: importación de Excel (plantilla, lectura, errores, matching con alias y vista previa)
 - [x] **F6**: Panel, Clientes (ficha, alta, edición), Profes, «Primera vez / pedir acceso» y pulido
 - [x] **F7**: E2E con Playwright (flujo clave, pedir acceso, cambio de usuario, equipo), gestión del equipo (Equipo, perfil del profe, `create-admin`, RLS de desactivados) y deploy en Vercel
+- [x] **F8**: planificador con RPE/RIR objetivo, registro real por serie («¿Cómo te fue?») y pestaña Registro del profe
+- [ ] **F9**: agenda de turnos
+- [ ] **F10**: pagos y recordatorios de cobro

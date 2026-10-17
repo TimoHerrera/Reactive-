@@ -7,6 +7,7 @@ import type {
   ExerciseCategory,
   ExerciseView,
   ItemCheck,
+  SetLog,
   Profile,
   Routine,
   RoutineBlock,
@@ -50,6 +51,7 @@ export interface Db {
   routineItems: RoutineItem[];
   workoutSessions: WorkoutSession[];
   itemChecks: ItemCheck[];
+  setLogs: SetLog[];
   exerciseViews: ExerciseView[];
   accessRequests: (AccessRequest & { ipHash?: string | null })[];
   /** Solo mock: invitaciones simuladas (token → usuario). */
@@ -265,8 +267,8 @@ const exId = (key: string) => seedId(2, EXERCISES.findIndex((e) => e.key === key
 
 // ── Rutinas ───────────────────────────────────────────────────────
 
-/** [ejercicio, series, reps, carga, descanso, tempo, nota] */
-type ItemSpec = [string, number, string, string?, string?, string?, string?];
+/** [ejercicio, series, reps, carga, descanso, tempo, observaciones, RPE objetivo, RIR objetivo] */
+type ItemSpec = [string, number, string, string?, string?, string?, string?, string?, string?];
 type RoutineSpec = {
   n: number;
   name: string;
@@ -295,8 +297,8 @@ const FASE2_DAYS: RoutineSpec["days"] = [
       {
         name: "Bloque principal",
         items: [
-          ["goblet", 4, "8", "16 kg", "90 s", "3-1-1", "Rodillas en la línea de los pies."],
-          ["rdl", 4, "8", "2 × 14 kg", "90 s"],
+          ["goblet", 4, "8", "16 kg", "90 s", "3-1-1", "Rodillas en la línea de los pies.", "7", "3"],
+          ["rdl", 4, "8", "2 × 14 kg", "90 s", undefined, undefined, "7-8", "2"],
           ["bulgara", 3, "8 c/lado", "2 × 8 kg", "75 s"],
           ["nordic", 3, "5", "Banda", "2 min"],
         ],
@@ -733,7 +735,7 @@ export function buildSeed(today: string = todayISO(), now: Date = new Date()): D
       d.blocks.forEach((b, bi) => {
         const blockId = seedId(5, ++blockN);
         routineBlocks.push({ id: blockId, dayId, name: b.name, position: bi });
-        b.items.forEach(([key, sets, reps, load, rest, tempo, notes], ii) => {
+        b.items.forEach(([key, sets, reps, load, rest, tempo, notes, rpeTarget, rirTarget], ii) => {
           const ex = EXERCISES.find((e) => e.key === key)!;
           routineItems.push({
             id: seedId(6, ++itemN),
@@ -746,6 +748,8 @@ export function buildSeed(today: string = todayISO(), now: Date = new Date()): D
             load: load ?? null,
             rest: rest ?? null,
             tempo: tempo ?? null,
+            rpeTarget: rpeTarget ?? null,
+            rirTarget: rirTarget ?? null,
             notes: notes ?? null,
           });
         });
@@ -785,6 +789,19 @@ export function buildSeed(today: string = todayISO(), now: Date = new Date()): D
   addSession(IDS.martina, 1, "B", -5, 0, "all");
   addSession(IDS.tomas, 4, "B", 0, 4, 3);
   addSession(IDS.joaquin, 5, "A", -2, 0, "all");
+
+  // Registro real («¿Cómo te fue?») de Martina hoy en el Día A: la goblet le costó más de lo planificado.
+  const martinaHoy = workoutSessions.find((w) => w.clientId === IDS.martina && w.dayId === dayOf(1, "A").id)!;
+  const itemOf = (key: string) => itemsOfDay(martinaHoy.dayId).find((i) => i.exerciseId === exId(key))!;
+  const setLogs: SetLog[] = [];
+  const logSets = (key: string, load: string, rpes: number[], note?: string) => {
+    const it = itemOf(key);
+    rpes.forEach((rpe, i) =>
+      setLogs.push({ sessionId: martinaHoy.id, itemId: it.id, setNumber: i + 1, reps: it.reps, load, rpe, note: i === 0 ? (note ?? null) : null, createdAt: ts(0, 2) }),
+    );
+  };
+  logSets("goblet", "16 kg", [7, 8, 8, 9], "La última serie me costó mucho, sentí el tobillo.");
+  logSets("rdl", "2 × 14 kg", [7, 7, 8, 8]);
 
   const exerciseViews: ExerciseView[] = [0, 1, 2].map((i) => ({
     clientId: IDS.joaquin,
@@ -835,6 +852,7 @@ export function buildSeed(today: string = todayISO(), now: Date = new Date()): D
     routineItems,
     workoutSessions,
     itemChecks,
+    setLogs,
     exerciseViews,
     accessRequests,
     activations: [],

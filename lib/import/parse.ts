@@ -1,5 +1,6 @@
 // Lectura de la planilla ya convertida a filas (array de arrays). Puro: no depende de SheetJS.
 import { normalizeText } from "@/lib/text";
+import { normalizeRange, parseRange } from "@/lib/routine/effort";
 import { FIELD_LABEL, mapColumns, type ColumnResult, type Field } from "./columns";
 
 export type Issue = {
@@ -25,6 +26,8 @@ export type ParsedRow = {
   reps: string;
   load: string;
   rest: string;
+  rpe: string;
+  rir: string;
   notes: string;
 };
 
@@ -129,6 +132,22 @@ function findHeaderRow(aoa: unknown[][]): number {
   return aoa.findIndex((r) => (r ?? []).filter((c) => String(c ?? "").trim()).length >= 3);
 }
 
+/**
+ * RPE y RIR: se normalizan («7 a 8» → «7-8») y, si no son un valor o rango válido
+ * (RPE 1–10, RIR 0–10), se avisa y se importan tal cual como texto.
+ */
+export function checkEffort(rows: ParsedRow[], warnings: Issue[]): void {
+  for (const r of rows) {
+    const where = r.sheet ? `${r.sheet} · Fila ${r.row}` : `Fila ${r.row}`;
+    for (const [key, label, lo, hi] of [["rpe", "RPE", 1, 10], ["rir", "RIR", 0, 10]] as const) {
+      const raw = r[key];
+      if (!raw) continue;
+      if (parseRange(raw, lo, hi)) r[key] = normalizeRange(raw, lo, hi);
+      else warnings.push({ kind: "warning", title: `${where} · «${label}»`, detail: `«${raw}» no es un ${label} válido (${lo} a ${hi}, o un rango como 7-8). Lo dejamos como texto.`, rows: [r.row] });
+    }
+  }
+}
+
 export function parseSheet(aoa: unknown[][]): ParseResult {
   const errors: Issue[] = [];
   const warnings: Issue[] = [];
@@ -201,6 +220,8 @@ export function parseSheet(aoa: unknown[][]): ParseResult {
       reps: cell(r, map.reps),
       load: cell(r, map.carga),
       rest: cell(r, map.descanso),
+      rpe: cell(r, map.rpe),
+      rir: cell(r, map.rir),
       notes: cell(r, map.notas),
     });
   }
@@ -224,6 +245,7 @@ export function parseSheet(aoa: unknown[][]): ParseResult {
       rows: [c.row],
     });
   }
+  checkEffort(rows, warnings);
   if (!errors.length && rows.length === 0) {
     errors.push({ kind: "error", title: "No hay ejercicios", detail: "La planilla tiene encabezados pero ninguna fila con ejercicios." });
   }

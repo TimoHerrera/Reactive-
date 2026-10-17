@@ -20,6 +20,7 @@ function load(): Db {
       const seed = buildSeed();
       saved.accessRequests ??= seed.accessRequests;
       saved.activations ??= [];
+      saved.setLogs ??= seed.setLogs;
       saved.inviteCodes ??= [];
       for (const r of saved.accessRequests) if (r.linkedProfileId === undefined) r.linkedProfileId = null;
       for (const r of saved.routines) {

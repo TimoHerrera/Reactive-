@@ -20,6 +20,7 @@ const DOT: Record<ActivityKind, string> = {
   parcial: "bg-accent",
   vence: "bg-warning",
   vistas: "bg-muted",
+  rpe: "bg-danger",
 };
 
 function SheetIcon() {
@@ -45,16 +46,19 @@ export default function PanelPage() {
       data.views.list({ since }),
       data.accessRequests.list("pending"),
     ]);
-    const checks = await data.sessions.listChecks(sessions.map((s) => s.id));
+    const [checks, setLogs] = await Promise.all([
+      data.sessions.listChecks(sessions.map((s) => s.id)),
+      data.sessions.listSetLogs(sessions.map((s) => s.id)),
+    ]);
     const ids = [...new Set(sessions.map((s) => s.routineId))];
     const trees = new Map<string, RoutineTree>();
     for (const t of await Promise.all(ids.map((id) => data.routines.getTree(id)))) if (t) trees.set(t.id, t);
-    return { clients, routines, exercises, sessions, views, requests, checks, trees };
+    return { clients, routines, exercises, sessions, views, requests, checks, setLogs, trees };
   }, []);
 
   const derived = useMemo(() => {
     if (!raw.data) return undefined;
-    const { exercises, checks, trees } = raw.data;
+    const { exercises, checks, setLogs, trees } = raw.data;
     const scope = clientIdsOfCoach(raw.data.clients, filter.coachId);
     const inScope = (clientId: string) => !scope || scope.has(clientId);
     const clients = raw.data.clients.filter((c) => inScope(c.id) && !c.disabledAt);
@@ -76,6 +80,7 @@ export default function PanelPage() {
         sessions,
         checks,
         views,
+        setLogs,
         exerciseNames: new Map(exercises.map((e) => [e.id, e.name])),
       }),
     };

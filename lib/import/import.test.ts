@@ -10,12 +10,14 @@ import { sheetToRows } from "./read";
 
 const { exercises } = buildSeed("2026-10-11");
 const match = buildMatcher(exercises);
-const H = ["Día", "Bloque", "Orden", "Ejercicio", "Series", "Reps", "Carga", "Descanso", "Notas"];
+const H = ["Día", "Bloque", "Orden", "Ejercicio", "Series", "Reps", "Carga", "Descanso", "RPE", "RIR", "Observaciones"];
+/** Encabezados de la plantilla vieja (sin RPE ni RIR). */
+const H_OLD = ["Día", "Bloque", "Orden", "Ejercicio", "Series", "Reps", "Carga", "Descanso", "Notas"];
 
 describe("columnas", () => {
-  it("reconoce las 9 columnas de la plantilla, sin importar acentos ni mayúsculas", () => {
-    const c = mapColumns(["DIA", " bloque ", "Orden", "ejercicio", "SERIES", "Reps", "Carga", "Descanso", "Notas"]);
-    expect(c.recognized).toHaveLength(9);
+  it("reconoce las 11 columnas de la plantilla, sin importar acentos ni mayúsculas", () => {
+    const c = mapColumns(["DIA", " bloque ", "Orden", "ejercicio", "SERIES", "Reps", "Carga", "Descanso", "rpe", "RIR", "Notas"]);
+    expect(c.recognized).toHaveLength(11);
     expect(c.missingRequired).toEqual([]);
   });
 
@@ -296,5 +298,38 @@ describe("sugerencias para vincular después", () => {
     const { suggestExercises } = await import("./match");
     expect(suggestExercises("Sillon de cuadriceps", exercises)).toEqual([]);
     expect(suggestExercises("Burpees", exercises)).toEqual([]);
+  });
+});
+
+describe("RPE y RIR", () => {
+  it("Excel viejo sin columnas RPE/RIR: se sigue aceptando y quedan vacíos", () => {
+    const res = parseSheet([H_OLD, ["A", "Principal", 1, "Sentadilla goblet", 4, "8", "16 kg", "90 s", "Rodillas afuera"]]);
+    expect(res.ok).toBe(true);
+    expect(res.rows[0]).toMatchObject({ rpe: "", rir: "", notes: "Rodillas afuera" });
+  });
+
+  it("columnas nuevas: rangos normalizados y «Observaciones» como notas", () => {
+    const res = parseSheet([H, ["A", "Principal", 1, "Sentadilla goblet", 4, "8", "16 kg", "90 s", "7 a 8", "2", "Controlá la bajada"]]);
+    expect(res.ok).toBe(true);
+    expect(res.warnings).toEqual([]);
+    expect(res.rows[0]).toMatchObject({ rpe: "7-8", rir: "2", notes: "Controlá la bajada" });
+  });
+
+  it("valor inválido: aviso con la fila y se importa como texto", () => {
+    const res = parseSheet([H, ["A", "Principal", 1, "RDL", 4, "8", "", "", "muy duro", "15", ""]]);
+    expect(res.ok).toBe(true);
+    expect(res.warnings.map((w) => w.title)).toEqual(["Fila 2 · «RPE»", "Fila 2 · «RIR»"]);
+    expect(res.rows[0]).toMatchObject({ rpe: "muy duro", rir: "15" });
+  });
+
+  it("pasa al borrador como objetivo del ejercicio", () => {
+    const res = parseSheet([H, ["A", "Principal", 1, "Sentadilla goblet", 4, "8", "", "", "8", "1-2", ""]]);
+    const draft = importToDraft(res.days, (r) => ({ exerciseId: null, name: r.exercise }), { fileName: "x.xlsx" });
+    expect(draft.days[0]!.blocks[0]!.items[0]).toMatchObject({ rpeTarget: "8", rirTarget: "1-2" });
+  });
+
+  it("la plantilla descargable trae RPE y RIR", () => {
+    expect(TEMPLATE_HEADERS).toContain("RPE");
+    expect(TEMPLATE_HEADERS).toContain("RIR");
   });
 });

@@ -77,3 +77,23 @@ describe("textos", () => {
     expect(greeting("Nico", NOW)).toBe("Buen lunes, Nico.");
   });
 });
+
+describe("RPE real por encima del objetivo", () => {
+  it("«Martina marcó RPE 9 en Sentadilla goblet (objetivo 7)» con su comentario", () => {
+    const withLogs = buildActivity({
+      clients: db.profiles.filter((p) => p.role === "client"),
+      routines: db.routines,
+      trees,
+      sessions: db.workoutSessions,
+      checks: db.itemChecks,
+      views: db.exerciseViews,
+      setLogs: db.setLogs,
+      exerciseNames: new Map(db.exercises.map((e) => [e.id, e.name])),
+      now: NOW,
+      limit: 20,
+    });
+    const rpe = withLogs.filter((a) => a.kind === "rpe");
+    expect(rpe.map(text)).toEqual(["Martina marcó RPE 9 en Sentadilla goblet (objetivo 7)"]);
+    expect(rpe[0]!.sub).toContain("sentí el tobillo");
+  });
+});

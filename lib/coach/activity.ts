@@ -1,12 +1,13 @@
 // «Actividad reciente» del Panel del profe: sesiones completas y parciales, rutinas que vencen
-// y videos vistos varias veces (posible duda con la técnica). Puro y testeable.
+// videos vistos varias veces (posible duda con la técnica) y RPE real por encima del objetivo. Puro y testeable.
 import { diffDays, formatRelative, parseISODate, toISODate } from "@/lib/dates";
-import type { ExerciseView, ItemCheck, Profile, Routine, RoutineTree, WorkoutSession } from "@/lib/data/types";
+import type { ExerciseView, ItemCheck, Profile, Routine, RoutineTree, SetLog, WorkoutSession } from "@/lib/data/types";
 import { CASE_TYPE_LABEL } from "@/lib/data/types";
 import { itemsOfDay } from "@/lib/routine/locate";
 import { routineStatus } from "@/lib/routine/status";
+import { summarizeSession } from "@/lib/routine/setlogs";
 
-export type ActivityKind = "completada" | "parcial" | "vence" | "vistas";
+export type ActivityKind = "completada" | "parcial" | "vence" | "vistas" | "rpe";
 
 export type ActivityItem = {
   key: string;
@@ -38,6 +39,8 @@ export function buildActivity(input: {
   sessions: WorkoutSession[];
   checks: ItemCheck[];
   views: ExerciseView[];
+  /** Registro real («¿Cómo te fue?»): RPE real ≥ objetivo + 2 → aviso. */
+  setLogs?: SetLog[];
   exerciseNames: Map<string, string>;
   now?: Date;
   limit?: number;
@@ -75,6 +78,30 @@ export function buildActivity(input: {
         clientName: c.fullName,
         parts: [{ text: c.fullName, strong: true }, { text: ` marcó ${done} de ${total} en el Día ${day.label}` }],
         sub: formatRelative(last, now),
+        at: last,
+      });
+    }
+  }
+
+  // RPE real por encima del objetivo (últimos 3 días)
+  for (const s of input.sessions) {
+    const c = clientById.get(s.clientId);
+    const day = input.trees.get(s.routineId)?.days.find((d) => d.id === s.dayId);
+    const logs = (input.setLogs ?? []).filter((l) => l.sessionId === s.id);
+    if (!c || !day || logs.length === 0) continue;
+    const items = itemsOfDay(day);
+    for (const sum of summarizeSession(items, logs)) {
+      const last = sum.logs.map((l) => l.createdAt).sort().at(-1)!;
+      if (!sum.alert || !recent(last, 3)) continue;
+      const item = items.find((i) => i.id === sum.itemId)!;
+      const name = (item.exerciseId && input.exerciseNames.get(item.exerciseId)) || item.rawName;
+      out.push({
+        key: `rpe-${s.id}-${item.id}`,
+        kind: "rpe",
+        clientId: c.id,
+        clientName: c.fullName,
+        parts: [{ text: c.fullName.split(" ")[0]!, strong: true }, { text: ` marcó RPE ${sum.maxRpe} en ${name} (objetivo ${item.rpeTarget})` }],
+        sub: [formatRelative(last, now), sum.note && `«${sum.note}»`].filter(Boolean).join(" · "),
         at: last,
       });
     }
