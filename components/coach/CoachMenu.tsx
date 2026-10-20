@@ -9,7 +9,7 @@ import { useQuery } from "@/lib/hooks";
 import { hardNavigate } from "@/lib/auth/session-events";
 import { resetDemoData } from "@/lib/data/mock";
 
-/** Avatar del profe con menú: Mi perfil, Pagos, Mis avisos, Equipo y Ajustes (admin), restablecer datos de demo (admin, mock) y cerrar sesión. */
+/** Avatar del profe con menú: Mi perfil, Pagos, Mis avisos, Mis horarios, Equipo y Ajustes (admin), restablecer datos de demo (admin, mock) y cerrar sesión. */
 export function CoachMenu() {
   const { user, signOut } = useSession();
   const me = useQuery(() => (user ? data.profiles.get(user.id) : Promise.resolve(null)), [user?.id]);
@@ -56,6 +56,9 @@ export function CoachMenu() {
           </Link>
           <Link role="menuitem" href="/coach/avisos/configurar" className={item}>
             Mis avisos
+          </Link>
+          <Link role="menuitem" href="/coach/agenda/horarios" className={item}>
+            Mis horarios
           </Link>
           {user.role === "admin" && (
             <Link role="menuitem" href="/coach/equipo" className={item}>

@@ -7,6 +7,7 @@ import { APPOINTMENT_STATUS_LABEL, type AppointmentStatus } from "@/lib/data/typ
 import { whatsappUrl } from "@/lib/phone";
 
 const STATUS_CLASS: Record<AppointmentStatus, string> = {
+  pendiente: "bg-warning/20 text-warning",
   agendado: "bg-accent/20 text-ink",
   reprogramacion_pedida: "bg-warning/20 text-warning",
   cancelado: "bg-surface-2 text-muted line-through",

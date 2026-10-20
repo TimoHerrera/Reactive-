@@ -10,7 +10,10 @@ import type {
   SetLog,
   Appointment,
   AppSettings,
+  AvailabilityRule,
+  BookingSettings,
   NotificationPrefs,
+  TimeOff,
   ClientPlan,
   Payment,
   Profile,
@@ -29,7 +32,7 @@ import { addMonths, DEFAULT_PAYMENT_TEMPLATE, periodOf } from "@/lib/billing/sta
 export const DEMO_PASSWORD = "reactive-demo";
 
 /** UUIDs determinísticos para que mock y SQL compartan ids. */
-export function seedId(kind: number | "a" | "b" | "c" | "d", n: number): string {
+export function seedId(kind: number | "a" | "b" | "c" | "d" | "e", n: number): string {
   return `${kind}0000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 }
 
@@ -64,6 +67,10 @@ export interface Db {
   clientPlans: ClientPlan[];
   payments: Payment[];
   settings: AppSettings;
+  /** Reservas online (F12): reglas, franjas y días bloqueados por profe. */
+  bookingSettings: BookingSettings[];
+  availabilityRules: AvailabilityRule[];
+  timeOff: TimeOff[];
   /** Avisos (F11): preferencias por profe y claves ya vistas. */
   notificationPrefs: (NotificationPrefs & { userId: string })[];
   notificationSeen: { userId: string; key: string; seenAt: string }[];
@@ -905,6 +912,35 @@ export function buildSeed(today: string = todayISO(), now: Date = new Date()): D
     });
   }
 
+  // ── Reservas online (F12): Nico atiende de lunes a viernes, 8 a 12 y 15 a 19; las reservas las confirma él ──
+  const bookingSettings: BookingSettings[] = [
+    { coachId: IDS.nico, enabled: true, autoConfirm: false, slotMinutes: 60, minNoticeHours: 12, maxDaysAhead: 30, cancelHours: 24, types: ["kinesiologia", "entrenamiento", "evaluacion_funcional"], updatedAt: created },
+  ];
+  const availabilityRules: AvailabilityRule[] = [1, 2, 3, 4, 5].flatMap((weekday) => [
+    { id: seedId("e", weekday * 10 + 1), coachId: IDS.nico, weekday, startTime: "08:00", endTime: "12:00" },
+    { id: seedId("e", weekday * 10 + 2), coachId: IDS.nico, weekday, startTime: "15:00", endTime: "19:00" },
+  ]);
+  const timeOff: TimeOff[] = [{ id: seedId("e", 90), coachId: IDS.nico, date: addDays(today, 17), reason: "Congreso de kinesiología" }];
+  // Valentina reservó online un turno que Nico todavía no confirmó (el primer día hábil desde pasado mañana, 11:00).
+  let bookDay = addDays(today, 2);
+  while ([0, 6].includes(new Date(`${bookDay}T12:00:00-03:00`).getUTCDay())) bookDay = addDays(bookDay, 1);
+  appointments.push({
+    id: seedId("a", 200),
+    clientId: IDS.valentina,
+    coachId: IDS.nico,
+    startsAt: baTimestamp(bookDay, "11:00"),
+    durationMin: 60,
+    type: "entrenamiento",
+    status: "pendiente",
+    notes: "Quiero sumar un día más de fuerza",
+    seriesId: null,
+    createdBy: IDS.valentina,
+    createdAt: ts(0, 2),
+    rescheduleReason: null,
+    reschedulePreference: null,
+    rescheduleRequestedAt: null,
+  });
+
   // ── Pagos: un caso de cada estado, sin importar qué día se abra la demo ──
   const cur = periodOf(today);
   const monthsAgo = (n: number) => `${addMonths(cur, -n)}-01`;
@@ -980,6 +1016,9 @@ export function buildSeed(today: string = todayISO(), now: Date = new Date()): D
     clientPlans,
     payments,
     settings,
+    bookingSettings,
+    availabilityRules,
+    timeOff,
     notificationPrefs: [],
     notificationSeen: [],
     exerciseViews,

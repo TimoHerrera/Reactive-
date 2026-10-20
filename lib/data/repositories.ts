@@ -7,7 +7,12 @@ import type {
   AccessRequestStatus,
   Appointment,
   AppSettings,
+  AppointmentType,
+  AvailabilityRule,
+  BookingSettings,
+  BusySlot,
   ClientPlan,
+  CoachSchedule,
   Payment,
   CoachNote,
   Exercise,
@@ -20,6 +25,7 @@ import type {
   RoutineTree,
   SessionUser,
   SetLog,
+  TimeOff,
   WorkoutSession,
 } from "./types";
 
@@ -222,6 +228,29 @@ export interface SettingsRepo {
   update(patch: Partial<Omit<AppSettings, "updatedAt">>): Promise<AppSettings>;
 }
 
+export type ScheduleInput = {
+  settings: Omit<BookingSettings, "coachId" | "updatedAt">;
+  rules: Pick<AvailabilityRule, "weekday" | "startTime" | "endTime">[];
+  timeOff: Pick<TimeOff, "date" | "reason">[];
+};
+
+/**
+ * Reservas online (F12). El paciente reserva solo con SU profe; el profe confirma o rechaza con
+ * `appointments.update` (estado «agendado» o «cancelado»).
+ */
+export interface BookingRepo {
+  /** Horarios y reglas. Paciente: solo los de su profe. Profe: los suyos. Admin: de cualquiera. Sin guardar → de fábrica. */
+  getSchedule(coachId: string): Promise<CoachSchedule>;
+  /** Reemplaza horarios, reglas y días bloqueados. Profe: los suyos; admin: de cualquiera. */
+  saveSchedule(coachId: string, input: ScheduleInput): Promise<CoachSchedule>;
+  /** Horarios ocupados del profe entre dos fechas (inclusive), sin datos de los pacientes. */
+  busy(coachId: string, from: string, to: string): Promise<BusySlot[]>;
+  /** Paciente: reserva con su profe. Se vuelve a validar todo (franjas, reglas, superposición). */
+  book(input: { startsAt: string; type: AppointmentType; notes?: string | null }): Promise<Appointment>;
+  /** Paciente: retira una reserva por confirmar (hasta que empiece) o cancela un turno agendado dentro del plazo. */
+  cancel(id: string): Promise<Appointment>;
+}
+
 export type NotificationPrefsInput = Omit<NotificationPrefs, "updatedAt">;
 
 /** Avisos del profe (F11). Cada uno ve y cambia solo lo suyo. Solo staff. */
@@ -250,4 +279,5 @@ export interface DataSource {
   billing: BillingRepo;
   settings: SettingsRepo;
   notifications: NotificationsRepo;
+  booking: BookingRepo;
 }

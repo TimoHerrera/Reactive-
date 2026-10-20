@@ -5,8 +5,8 @@ import type { Appointment, AppointmentStatus } from "@/lib/data/types";
 import { APPOINTMENT_TYPE_LABEL } from "@/lib/data/types";
 import { baDate, baTime, baTimestamp, baToday } from "./time";
 
-/** Estados que ocupan el horario del profe (cancelado no). */
-const OCCUPIES: AppointmentStatus[] = ["agendado", "reprogramacion_pedida", "asistio", "ausente"];
+/** Estados que ocupan el horario del profe (cancelado no). Una reserva por confirmar ya ocupa el horario. */
+export const OCCUPIES: AppointmentStatus[] = ["pendiente", "agendado", "reprogramacion_pedida", "asistio", "ausente"];
 
 /** Tope de turnos que se crean de una vez con «Repetir». */
 export const MAX_SERIES = 120;
@@ -86,10 +86,13 @@ export function findConflicts<T extends Pick<Appointment, "id" | "coachId" | "st
 
 export const byStart = <T extends Pick<Appointment, "startsAt">>(a: T, b: T) => a.startsAt.localeCompare(b.startsAt);
 
-/** Próximo turno vigente (agendado o con reprogramación pedida) desde `now` (incluye el que empezó hace < 30 min). */
+/** Estados de un turno que todavía va a pasar (por confirmar, agendado o con reprogramación pedida). */
+export const UPCOMING: AppointmentStatus[] = ["pendiente", "agendado", "reprogramacion_pedida"];
+
+/** Próximo turno vigente desde `now` (incluye el que empezó hace < 30 min). */
 export function nextAppointment<T extends Pick<Appointment, "startsAt" | "status">>(list: T[], now: Date = new Date()): T | null {
   const from = now.getTime() - 30 * 60_000;
-  return [...list].sort(byStart).find((a) => (a.status === "agendado" || a.status === "reprogramacion_pedida") && new Date(a.startsAt).getTime() >= from) ?? null;
+  return [...list].sort(byStart).find((a) => UPCOMING.includes(a.status) && new Date(a.startsAt).getTime() >= from) ?? null;
 }
 
 export const onDate = <T extends Pick<Appointment, "startsAt">>(list: T[], date: string) => list.filter((a) => baDate(a.startsAt) === date).sort(byStart);

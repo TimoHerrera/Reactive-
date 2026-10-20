@@ -1,5 +1,5 @@
 // Mapeos fila de Postgres → dominio. Los usan la capa de datos del navegador y el mail diario de avisos (servidor).
-import type { Appointment, ClientPlan, NotificationPrefs, Payment, Profile } from "../types";
+import type { Appointment, AppointmentType, AvailabilityRule, BookingSettings, ClientPlan, NotificationPrefs, Payment, Profile, TimeOff } from "../types";
 
 export type Row = Record<string, unknown>;
 
@@ -74,6 +74,7 @@ export const toPrefs = (r: Row): NotificationPrefs => ({
   packLowSessions: Number(r.pack_low_sessions),
   rescheduleEnabled: !!r.reschedule_enabled,
   scope: r.scope === "all" ? "all" : "mine",
+  bookingEnabled: r.booking_enabled !== false,
   emailEnabled: !!r.email_enabled,
   updatedAt: (r.updated_at as string) ?? null,
 });
@@ -89,5 +90,29 @@ export const fromPrefs = (userId: string, p: Omit<NotificationPrefs, "updatedAt"
   pack_low_sessions: p.packLowSessions,
   reschedule_enabled: p.rescheduleEnabled,
   scope: p.scope,
+  booking_enabled: p.bookingEnabled,
   email_enabled: p.emailEnabled,
 });
+
+// ── Reservas (F12) ──
+export const toBookingSettings = (r: Row): BookingSettings => ({
+  coachId: r.coach_id as string,
+  enabled: !!r.enabled,
+  autoConfirm: !!r.auto_confirm,
+  slotMinutes: Number(r.slot_minutes),
+  minNoticeHours: Number(r.min_notice_hours),
+  maxDaysAhead: Number(r.max_days_ahead),
+  cancelHours: Number(r.cancel_hours),
+  types: (r.types as AppointmentType[]) ?? [],
+  updatedAt: (r.updated_at as string) ?? null,
+});
+/** «08:00:00» → «08:00» */
+const hhmm = (t: unknown) => String(t ?? "").slice(0, 5);
+export const toRule = (r: Row): AvailabilityRule => ({
+  id: r.id as string,
+  coachId: r.coach_id as string,
+  weekday: Number(r.weekday),
+  startTime: hhmm(r.start_time),
+  endTime: hhmm(r.end_time),
+});
+export const toTimeOff = (r: Row): TimeOff => ({ id: r.id as string, coachId: r.coach_id as string, date: r.date as string, reason: (r.reason as string) ?? null });

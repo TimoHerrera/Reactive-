@@ -8,6 +8,7 @@ import {
   isStaff,
   type AccessRequest,
   type ClientPlan,
+  type CoachSchedule,
   type NotificationPrefs,
   type Payment,
   type Profile,
@@ -52,6 +53,9 @@ import { applyPatch, buildAppointments, canRequestReschedule, requestReschedule,
 import { baDate } from "@/lib/agenda/time";
 import { validatePayment, validatePlan } from "@/lib/billing/validate";
 import { defaultPrefs, validatePrefs } from "@/lib/notify/alerts";
+import { OCCUPIES } from "@/lib/agenda/agenda";
+import { bookedAppointment, canClientCancel, checkBooking, defaultBookingSettings, toBusy, validateSchedule } from "@/lib/agenda/booking";
+import { addDays } from "@/lib/dates";
 import { delay, getDb, mutate, resetMockDb, uuid } from "./store";
 import { mockVideos } from "./videos";
 
@@ -135,6 +139,25 @@ const activeStaff = (db: MockDb, id: string | null | undefined) => {
   const p = profileById(db, id);
   return p && isStaff(p.role) && !p.disabledAt ? p : null;
 };
+
+// ── Reservas (imita 0013_reservas.sql) ──
+/** Horarios de un profe tal como están guardados (o de fábrica). */
+function scheduleOf(db: MockDb, coachId: string): CoachSchedule {
+  return {
+    settings: db.bookingSettings.find((x) => x.coachId === coachId) ?? defaultBookingSettings(coachId),
+    rules: db.availabilityRules.filter((r) => r.coachId === coachId).sort((a, b) => a.weekday - b.weekday || a.startTime.localeCompare(b.startTime)),
+    timeOff: db.timeOff.filter((t) => t.coachId === coachId).sort((a, b) => a.date.localeCompare(b.date)),
+  };
+}
+/** Paciente: solo su profe. Profe: él mismo. Admin: cualquiera. */
+function requireScheduleAccess(db: MockDb, me: Viewer, coachId: string, write = false) {
+  if (!me) throw new Error("Iniciá sesión de nuevo.");
+  if (me.role === "admin") return;
+  if (me.role === "coach" && me.id === coachId) return;
+  if (!write && me.role === "client" && profileById(db, me.id)?.coachId === coachId) return;
+  throw new Error("No tenés acceso a esos horarios.");
+}
+const occupying = (db: MockDb, coachId: string) => db.appointments.filter((a) => a.coachId === coachId && OCCUPIES.includes(a.status));
 
 // ── Un email = una persona (normalizado: trim + minúsculas) ─────────
 const byEmail = (db: MockDb, email: string) => db.profiles.find((p) => normalizeEmail(p.email) === normalizeEmail(email));
@@ -812,6 +835,69 @@ export const mockDataSource: DataSource = {
         mutate((db) => {
           db.settings = { ...db.settings, ...patch, transferAlias: (patch.transferAlias ?? db.settings.transferAlias).trim(), updatedAt: now() };
           return db.settings;
+        }),
+      );
+    },
+  },
+
+  booking: {
+    async getSchedule(coachId) {
+      const me = currentUser();
+      const db = getDb();
+      requireScheduleAccess(db, me, coachId);
+      return delay(scheduleOf(db, coachId));
+    },
+    async saveSchedule(coachId, input) {
+      const me = currentUser();
+      return delay(
+        mutate((db) => {
+          requireScheduleAccess(db, me, coachId, true);
+          if (!activeStaff(db, coachId)) throw new Error("Ese profe no está activo.");
+          const settings = { ...input.settings, coachId, updatedAt: now() };
+          const rules = input.rules.map((r) => ({ ...r, id: uuid(), coachId }));
+          const timeOff = input.timeOff.map((t) => ({ ...t, reason: t.reason?.trim() || null, id: uuid(), coachId }));
+          const error = validateSchedule({ settings, rules });
+          if (error) throw new Error(error);
+          db.bookingSettings = [...db.bookingSettings.filter((x) => x.coachId !== coachId), settings];
+          db.availabilityRules = [...db.availabilityRules.filter((r) => r.coachId !== coachId), ...rules];
+          db.timeOff = [...db.timeOff.filter((t) => t.coachId !== coachId), ...timeOff];
+          return scheduleOf(db, coachId);
+        }),
+      );
+    },
+    async busy(coachId, from, to) {
+      const me = currentUser();
+      const db = getDb();
+      requireScheduleAccess(db, me, coachId);
+      const last = addDays(to, 1);
+      return delay(toBusy(occupying(db, coachId).filter((a) => baDate(a.startsAt) >= from && baDate(a.startsAt) < last)));
+    },
+    async book(input) {
+      const me = currentUser();
+      return delay(
+        mutate((db) => {
+          const client = profileById(db, me?.id);
+          if (!me || me.role !== "client" || !client || client.disabledAt) throw new Error("Solo un paciente puede reservar.");
+          if (!client.coachId || !activeStaff(db, client.coachId)) throw new Error("Todavía no tenés un profe asignado.");
+          const schedule = scheduleOf(db, client.coachId);
+          const error = checkBooking({ ...input, schedule, busy: toBusy(occupying(db, client.coachId)), now: new Date() });
+          if (error) throw new Error(error);
+          const appt = bookedAppointment({ ...input, notes: input.notes ?? null, id: uuid(), clientId: me.id, coachId: client.coachId, settings: schedule.settings, now: now() });
+          db.appointments.push(appt);
+          return appt;
+        }),
+      );
+    },
+    async cancel(id) {
+      const me = currentUser();
+      return delay(
+        mutate((db) => {
+          const i = db.appointments.findIndex((a) => a.id === id && a.clientId === me?.id);
+          if (i < 0) notFound("Turno");
+          const a = db.appointments[i]!;
+          if (!canClientCancel(a, scheduleOf(db, a.coachId).settings)) throw new Error("Ese turno ya no se puede cancelar desde la app. Escribile a tu profe.");
+          db.appointments[i] = { ...a, status: "cancelado" };
+          return db.appointments[i]!;
         }),
       );
     },

@@ -137,6 +137,17 @@ for (const p of db.payments) {
 }
 push(`update public.app_settings set transfer_alias = ${q(db.settings.transferAlias)}, show_billing_to_client = ${bool(db.settings.showBillingToClient)} where id;`);
 
+push("\n-- ── Reservas online ─────────────────────────────────────────────");
+for (const s of db.bookingSettings) {
+  push(`insert into public.booking_settings (coach_id, enabled, auto_confirm, slot_minutes, min_notice_hours, max_days_ahead, cancel_hours, types) values (${q(s.coachId)}, ${bool(s.enabled)}, ${bool(s.autoConfirm)}, ${s.slotMinutes}, ${s.minNoticeHours}, ${s.maxDaysAhead}, ${s.cancelHours}, '{${s.types.join(",")}}') on conflict (coach_id) do nothing;`);
+}
+for (const r of db.availabilityRules) {
+  push(`insert into public.availability_rules (id, coach_id, weekday, start_time, end_time) values (${q(r.id)}, ${q(r.coachId)}, ${r.weekday}, ${q(r.startTime)}, ${q(r.endTime)}) on conflict (id) do nothing;`);
+}
+for (const t of db.timeOff) {
+  push(`insert into public.time_off (id, coach_id, date, reason) values (${q(t.id)}, ${q(t.coachId)}, ${date(t.date)}, ${q(t.reason)}) on conflict do nothing;`);
+}
+
 push("\ncommit;\n");
 
 const target = resolve(__dirname, "../supabase/seed.sql");

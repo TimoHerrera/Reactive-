@@ -7,43 +7,10 @@ import { InlineLoading } from "@/components/Loading";
 import { useAlerts } from "@/components/notify/useAlerts";
 import { useSession } from "@/components/SessionProvider";
 import { IconArrowLeft } from "@/components/ui/icons";
+import { Stepper } from "@/components/ui/Stepper";
 import { cn } from "@/lib/cn";
 import { data, type NotificationPrefs } from "@/lib/data";
 import { describeRule, LIMITS, validatePrefs } from "@/lib/notify/alerts";
-
-/** − N + con límites. */
-function Stepper({ value, onChange, range, label, disabled }: {
-  value: number;
-  onChange: (n: number) => void;
-  range: readonly [number, number];
-  label: string;
-  disabled?: boolean;
-}) {
-  const [min, max] = range;
-  const clamp = (n: number) => Math.min(max, Math.max(min, Math.round(n)));
-  const btn = "flex h-11 w-11 items-center justify-center rounded-full border border-line text-[1.25rem] font-bold hover:bg-surface-2 disabled:opacity-40";
-  return (
-    <span className="inline-flex items-center gap-2">
-      <button type="button" aria-label={`Menos ${label}`} disabled={disabled || value <= min} onClick={() => onChange(clamp(value - 1))} className={btn}>
-        −
-      </button>
-      <input
-        type="number"
-        inputMode="numeric"
-        aria-label={label}
-        min={min}
-        max={max}
-        value={value}
-        disabled={disabled}
-        onChange={(e) => e.target.value !== "" && onChange(clamp(Number(e.target.value)))}
-        className="h-11 w-16 rounded-md border border-line bg-bg text-center text-body font-bold tabular-nums text-ink outline-none focus:border-accent disabled:opacity-40 [color-scheme:dark]"
-      />
-      <button type="button" aria-label={`Más ${label}`} disabled={disabled || value >= max} onClick={() => onChange(clamp(value + 1))} className={btn}>
-        +
-      </button>
-    </span>
-  );
-}
 
 /** Tarjeta de una regla: título + interruptor; el detalle se atenúa si está apagada. */
 function Rule({ title, hint, enabled, onToggle, children }: {
@@ -158,6 +125,8 @@ export function ConfigurarAvisosView() {
 
         <Rule title="Pedidos de reprogramación" hint="Cuando un paciente pide cambiar un turno." enabled={form.rescheduleEnabled} onToggle={(v) => set({ rescheduleEnabled: v })} />
 
+        <Rule title="Reservas por confirmar" hint="Cuando un paciente reserva online y el turno espera tu OK." enabled={form.bookingEnabled} onToggle={(v) => set({ bookingEnabled: v })} />
+
         {isAdmin && (
           <section className="rounded-lg border border-line bg-surface p-4">
             <h2 className="text-title-sm">¿De quiénes?</h2>
@@ -194,7 +163,8 @@ export function ConfigurarAvisosView() {
             {form.overdueEnabled && <li>Sin pagar: {describeRule("vencido", form)}.</li>}
             {form.packLowEnabled && <li>Pack: {describeRule("pack", form)}.</li>}
             {form.rescheduleEnabled && <li>Reprogramaciones: {describeRule("reprogramacion", form)}.</li>}
-            {!form.dueSoonEnabled && !form.overdueEnabled && !form.packLowEnabled && !form.rescheduleEnabled && <li>Todos los avisos están apagados.</li>}
+            {form.bookingEnabled && <li>Reservas: {describeRule("reserva", form)}.</li>}
+            {!form.dueSoonEnabled && !form.overdueEnabled && !form.packLowEnabled && !form.rescheduleEnabled && !form.bookingEnabled && <li>Todos los avisos están apagados.</li>}
           </ul>
         </div>
 

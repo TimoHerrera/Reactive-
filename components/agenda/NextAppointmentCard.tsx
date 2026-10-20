@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { Sheet } from "@/components/ui/Sheet";
 import { appointmentIcs, byStart, nextAppointment, shortDay } from "@/lib/agenda/agenda";
@@ -14,7 +15,7 @@ export function appointmentLine(a: Appointment, coachName?: string | null): stri
   return `${shortDay(baDate(a.startsAt))} · ${baTime(a.startsAt)} · ${APPOINTMENT_TYPE_LABEL[a.type]}${coachName ? ` con ${coachName}` : ""}`;
 }
 
-function downloadIcs(a: Appointment, coachName: string | null) {
+export function downloadIcs(a: Appointment, coachName: string | null) {
   const blob = new Blob([appointmentIcs(a, { coachName })], { type: "text/calendar;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -45,9 +46,26 @@ export function NextAppointmentCard({ clientId, readOnly }: { clientId: string |
   const [error, setError] = useState<string | null>(null);
 
   const next = q.data ? nextAppointment(q.data.list) : null;
-  if (!next) return null;
+  if (!q.data) return null;
+  if (!next) {
+    if (readOnly) return null;
+    return (
+      <section aria-labelledby="proximo-turno" className="flex items-center justify-between gap-3 rounded-lg border border-line bg-surface p-4">
+        <span className="min-w-0">
+          <span id="proximo-turno" className="label block">
+            Próximo turno
+          </span>
+          <span className="mt-1 block text-small text-muted">No tenés turnos agendados.</span>
+        </span>
+        <Link href="/app/turnos" className="flex min-h-[48px] shrink-0 items-center rounded-full bg-accent px-4 text-small font-bold text-ink">
+          Reservar turno
+        </Link>
+      </section>
+    );
+  }
   const coachName = q.data!.staff.find((s) => s.id === next.coachId)?.fullName ?? null;
   const requested = next.status === "reprogramacion_pedida";
+  const pending = next.status === "pendiente";
 
   const send = async () => {
     if (!reason.trim()) return setError("Contale a tu profe el motivo.");
@@ -70,11 +88,13 @@ export function NextAppointmentCard({ clientId, readOnly }: { clientId: string |
         <p id="proximo-turno" className="label">
           Próximo turno
         </p>
-        {requested && <StatusPill status={next.status} />}
+        {(requested || pending) && <StatusPill status={next.status} />}
       </div>
       <p className="mt-2 text-title-sm">{appointmentLine(next, coachName)}</p>
       {requested ? (
         <p className="mt-2 text-small text-muted">Le avisamos a tu profe que querés reprogramar. Te va a confirmar el nuevo horario.</p>
+      ) : pending ? (
+        <p className="mt-2 text-small text-muted">Lo reservaste online: tu profe lo tiene que confirmar.</p>
       ) : (
         next.notes && <p className="mt-1 text-small text-muted">{next.notes}</p>
       )}
@@ -95,6 +115,9 @@ export function NextAppointmentCard({ clientId, readOnly }: { clientId: string |
           >
             Agregar a mi calendario
           </button>
+          <Link href="/app/turnos" className="col-span-2 flex min-h-[44px] items-center justify-center text-small font-semibold text-title underline-offset-4 hover:underline">
+            Ver mis turnos o reservar otro →
+          </Link>
         </div>
       )}
 
@@ -125,7 +148,7 @@ export function NextAppointmentCard({ clientId, readOnly }: { clientId: string |
 /** Perfil: lista de próximos turnos. */
 export function UpcomingAppointments({ clientId }: { clientId: string | null }) {
   const q = useClientAppointments(clientId);
-  const list = (q.data?.list ?? []).filter((a) => a.status === "agendado" || a.status === "reprogramacion_pedida");
+  const list = (q.data?.list ?? []).filter((a) => a.status === "agendado" || a.status === "reprogramacion_pedida" || a.status === "pendiente");
   if (!q.data) return null;
   return (
     <section aria-labelledby="mis-turnos" className="rounded-lg border border-line bg-surface px-4 py-3">

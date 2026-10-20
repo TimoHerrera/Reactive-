@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { AppointmentCard } from "@/components/agenda/AppointmentCard";
@@ -68,6 +69,7 @@ export function AgendaView() {
   const nameOf = (id: string) => clientById.get(id)?.fullName ?? "Paciente";
 
   const requests = all.filter((a) => a.status === "reprogramacion_pedida");
+  const pendingBookings = all.filter((a) => a.status === "pendiente").sort(byStart);
   const tomorrow = addDays(today, 1);
   const tomorrowList = onDate(all, tomorrow).filter((a) => a.status === "agendado" || a.status === "reprogramacion_pedida");
   const dayList = onDate(all, date);
@@ -118,7 +120,12 @@ export function AgendaView() {
           </span>
           <CoachMenu />
         </div>
-        <h1 className="display mt-4 text-display-xl text-title">Agenda</h1>
+        <div className="mt-4 flex items-end justify-between gap-3">
+          <h1 className="display text-display-xl text-title">Agenda</h1>
+          <Link href="/coach/agenda/horarios" className="mb-1 inline-flex min-h-[44px] shrink-0 items-center rounded-full border border-line px-4 text-small font-bold hover:bg-surface-2">
+            Mis horarios
+          </Link>
+        </div>
       </header>
 
       <CoachFilterChips filter={filter} className="mb-3" />
@@ -160,6 +167,33 @@ export function AgendaView() {
       <div className="space-y-4 px-gutter pt-4">
         {q.error && !q.data && <QueryError what="la agenda" onRetry={() => void q.reload()} />}
         {!q.data && !q.error && <InlineLoading />}
+
+        {pendingBookings.length > 0 && (
+          <section aria-labelledby="reservas" className="rounded-lg border border-warning/70 bg-warning/10 p-4">
+            <h2 id="reservas" className="text-title-sm text-warning">
+              Reservas por confirmar ({pendingBookings.length})
+            </h2>
+            <ul className="mt-2 space-y-3">
+              {pendingBookings.map((a) => (
+                <li key={a.id} aria-label={`Reserva de ${nameOf(a.clientId)}`}>
+                  <p className="text-small">
+                    <strong>{nameOf(a.clientId)}</strong> · <span className="capitalize">{shortDay(baDate(a.startsAt))}</span> {baTime(a.startsAt)} · {APPOINTMENT_TYPE_LABEL[a.type]}
+                    {filter.isAdmin && !filter.coachId ? ` · ${staffById.get(a.coachId)?.fullName ?? ""}` : ""}
+                  </p>
+                  {a.notes && <p className="text-small text-muted">«{a.notes}»</p>}
+                  <div className="mt-2 flex gap-2">
+                    <button type="button" disabled={busy === a.id} onClick={() => void setStatus(a, "agendado", "this")} className="h-11 rounded-full bg-ink px-4 text-small font-bold text-bg disabled:opacity-50">
+                      Confirmar
+                    </button>
+                    <button type="button" disabled={busy === a.id} onClick={() => void setStatus(a, "cancelado", "this")} className="h-11 rounded-full border border-line px-4 text-small font-bold disabled:opacity-50">
+                      Rechazar
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         {requests.length > 0 && (
           <section aria-labelledby="pedidos" className="rounded-lg border border-warning/70 bg-warning/10 p-4">

@@ -28,6 +28,7 @@ import { DEFAULT_APPOINTMENT_TEMPLATE } from "@/lib/agenda/agenda";
 import { DEFAULT_PAYMENT_TEMPLATE } from "@/lib/billing/status";
 import { validatePayment, validatePlan } from "@/lib/billing/validate";
 import { defaultPrefs, validatePrefs } from "@/lib/notify/alerts";
+import { defaultBookingSettings, validateSchedule } from "@/lib/agenda/booking";
 
 /** Errores de server actions → excepción (con «Ver ficha» si el email ya existe). */
 function fail(res: { error: string; existing?: ExistingUser | null }): never {
@@ -51,7 +52,7 @@ import type {
   WorkoutSession,
 } from "../types";
 
-import { fromPrefs, toAppointment, toPayment, toPlan, toPrefs, toProfile, type Row } from "./rows";
+import { fromPrefs, toAppointment, toBookingSettings, toPayment, toPlan, toPrefs, toProfile, toRule, toTimeOff, type Row } from "./rows";
 
 const sb = (): SupabaseClient => getBrowserSupabase();
 
@@ -784,6 +785,56 @@ export const supabaseDataSource: DataSource = {
       if (!me || keys.length === 0) return;
       const seenAt = new Date().toISOString();
       check(await sb().from("notification_state").upsert([...new Set(keys)].map((key) => ({ user_id: me.id, key, seen_at: seenAt }))));
+    },
+  },
+
+  booking: {
+    async getSchedule(coachId) {
+      const [settings, rules, timeOff] = await Promise.all([
+        sb().from("booking_settings").select("*").eq("coach_id", coachId).maybeSingle(),
+        sb().from("availability_rules").select("*").eq("coach_id", coachId).order("weekday").order("start_time"),
+        sb().from("time_off").select("*").eq("coach_id", coachId).order("date"),
+      ]);
+      const row = check(settings) as Row | null;
+      return {
+        settings: row ? toBookingSettings(row) : defaultBookingSettings(coachId),
+        rules: (check(rules) as Row[]).map(toRule),
+        timeOff: (check(timeOff) as Row[]).map(toTimeOff),
+      };
+    },
+    async saveSchedule(coachId, input) {
+      const error = validateSchedule({ settings: { ...input.settings, coachId, updatedAt: null }, rules: input.rules.map((r) => ({ ...r, id: "", coachId })) });
+      if (error) throw new Error(error);
+      const c = input.settings;
+      check(
+        await sb().rpc("save_schedule", {
+          p_coach: coachId,
+          p_settings: {
+            enabled: c.enabled,
+            auto_confirm: c.autoConfirm,
+            slot_minutes: c.slotMinutes,
+            min_notice_hours: c.minNoticeHours,
+            max_days_ahead: c.maxDaysAhead,
+            cancel_hours: c.cancelHours,
+            types: c.types,
+          },
+          p_rules: input.rules.map((r) => ({ weekday: r.weekday, start_time: r.startTime, end_time: r.endTime })),
+          p_time_off: input.timeOff.map((t) => ({ date: t.date, reason: t.reason })),
+        }),
+      );
+      return this.getSchedule(coachId);
+    },
+    async busy(coachId, from, to) {
+      const rows = check(await sb().rpc("coach_busy", { p_coach: coachId, p_from: from, p_to: to })) as Row[];
+      return rows.map((r) => ({ startsAt: r.starts_at as string, durationMin: Number(r.duration_min) }));
+    },
+    async book(input) {
+      const row = check(await sb().rpc("book_appointment", { p_starts_at: input.startsAt, p_type: input.type, p_notes: input.notes ?? null }).single());
+      return toAppointment(row as Row);
+    },
+    async cancel(id) {
+      const row = check(await sb().rpc("cancel_my_appointment", { p_id: id }).single());
+      return toAppointment(row as Row);
     },
   },
 };

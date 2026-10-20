@@ -1,12 +1,14 @@
 // Avisos del profe (F11): qué pasa con sus pacientes según lo que él eligió en «Mis avisos». Funciones puras.
 // Cada aviso tiene una clave estable: si el profe ya lo vio (o ya salió por mail), no vuelve a aparecer como nuevo.
+import { shortDay } from "@/lib/agenda/agenda";
 import { baDate, baTime } from "@/lib/agenda/time";
+import { APPOINTMENT_TYPE_LABEL } from "@/lib/data/types";
 import type { BillingRow } from "@/lib/billing/rows";
 import { dm, formatMoney } from "@/lib/billing/status";
 import { addDays, diffDays } from "@/lib/dates";
 import type { Appointment, NotificationPrefs, Role } from "@/lib/data/types";
 
-export type AlertKind = "vence" | "vencido" | "pack" | "reprogramacion";
+export type AlertKind = "vence" | "vencido" | "pack" | "reprogramacion" | "reserva";
 
 export type Alert = {
   /** Estable mientras sea «el mismo» aviso (mismo vencimiento, misma repetición, mismo pedido). */
@@ -25,6 +27,7 @@ export const ALERT_KIND_LABEL: Record<AlertKind, string> = {
   vencido: "Sin pagar",
   pack: "Pack",
   reprogramacion: "Reprogramación",
+  reserva: "Reserva",
 };
 
 // ── Preferencias ──────────────────────────────────────────────────
@@ -47,6 +50,7 @@ export function defaultPrefs(role: Role | null | undefined): NotificationPrefs {
     packLowEnabled: true,
     packLowSessions: 1,
     rescheduleEnabled: true,
+    bookingEnabled: true,
     scope: role === "admin" ? "all" : "mine",
     emailEnabled: false,
     updatedAt: null,
@@ -77,6 +81,7 @@ export function describeRule(kind: AlertKind, p: NotificationPrefs): string {
     return p.overdueRepeatDays ? `${first} y cada ${days(p.overdueRepeatDays)} mientras siga sin pagar` : `${first}, una sola vez`;
   }
   if (kind === "pack") return p.packLowSessions === 0 ? "cuando se termina el pack" : `cuando quedan ${p.packLowSessions} ${p.packLowSessions === 1 ? "sesión" : "sesiones"} o menos`;
+  if (kind === "reserva") return "cuando un paciente reserva y hay que confirmar";
   return "cuando un paciente pide cambiar un turno";
 }
 
@@ -173,6 +178,26 @@ export function buildAlerts(input: {
         title: `${firstName(client.fullName)} pidió cambiar un turno`,
         detail: `${dm(day)} ${baTime(a.startsAt)}${a.rescheduleReason ? ` · «${a.rescheduleReason}»` : ""}`,
         date: a.rescheduleRequestedAt ? baDate(a.rescheduleRequestedAt) : today,
+        href: `/coach/agenda?fecha=${day}`,
+      });
+    }
+  }
+
+  // Reservas online por confirmar (F12).
+  if (prefs.bookingEnabled) {
+    const names = new Map(rows.map((r) => [r.client.id, r.client]));
+    for (const a of input.appointments) {
+      if (a.status !== "pendiente") continue;
+      const client = names.get(a.clientId);
+      if (!client || (!everyone && client.coachId !== me.id && a.coachId !== me.id)) continue;
+      const day = baDate(a.startsAt);
+      alerts.push({
+        key: `reserva:${a.id}`,
+        kind: "reserva",
+        clientId: client.id,
+        title: `${firstName(client.fullName)} reservó un turno`,
+        detail: `${shortDay(day)} ${baTime(a.startsAt)} · ${APPOINTMENT_TYPE_LABEL[a.type]} · por confirmar`,
+        date: baDate(a.createdAt || a.startsAt),
         href: `/coach/agenda?fecha=${day}`,
       });
     }
