@@ -14,6 +14,7 @@ const KIND_CLASS: Record<AlertKind, string> = {
   vencido: "bg-danger/20 text-danger-ink",
   pack: "bg-warning/20 text-warning",
   reprogramacion: "bg-accent/20 text-ink",
+  reserva: "bg-warning/20 text-warning",
 };
 
 /** Avisos del profe: lo nuevo arriba; tocar uno lo marca como visto y lleva a la ficha o a la agenda. */
@@ -74,7 +75,7 @@ export function AvisosView() {
 
         {!a.loading && a.alerts.length === 0 && (
           <p className="rounded-lg border-2 border-dashed border-line p-6 text-center text-small text-muted">
-            No hay avisos. Cuando a alguien le falte poco para vencer, no pague o se le termine el pack, te aparece acá.
+            No hay avisos. Cuando a alguien le falte poco para vencer, no pague, se le termine el pack o reserve un turno, te aparece acá.
           </p>
         )}
 

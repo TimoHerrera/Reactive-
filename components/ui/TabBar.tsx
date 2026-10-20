@@ -16,6 +16,7 @@ export type TabItem = {
 export const CLIENT_TABS: TabItem[] = [
   { href: "/app", label: "Hoy", icon: IconBolt, exact: true },
   { href: "/app/rutina", label: "Mi Rutina", icon: IconClipboard },
+  { href: "/app/turnos", label: "Turnos", icon: IconCalendar },
   { href: "/app/ejercicios", label: "Ejercicios", icon: IconPlaySquare },
   { href: "/app/perfil", label: "Perfil", icon: IconUser },
 ];

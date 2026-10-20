@@ -245,7 +245,7 @@ export type PublicCoach = { id: string; fullName: string; title: string | null }
 // ── Agenda de turnos (F9) ───────────────────────────────────────────
 
 export type AppointmentType = "kinesiologia" | "entrenamiento" | "evaluacion_funcional" | "sport_recovery" | "mep_sport";
-export type AppointmentStatus = "agendado" | "reprogramacion_pedida" | "cancelado" | "asistio" | "ausente";
+export type AppointmentStatus = "pendiente" | "agendado" | "reprogramacion_pedida" | "cancelado" | "asistio" | "ausente";
 
 export const APPOINTMENT_TYPE_LABEL: Record<AppointmentType, string> = {
   kinesiologia: "Kinesiología",
@@ -256,6 +256,7 @@ export const APPOINTMENT_TYPE_LABEL: Record<AppointmentType, string> = {
 };
 
 export const APPOINTMENT_STATUS_LABEL: Record<AppointmentStatus, string> = {
+  pendiente: "Por confirmar",
   agendado: "Agendado",
   reprogramacion_pedida: "Reprogramación pedida",
   cancelado: "Cancelado",
@@ -354,9 +355,56 @@ export interface NotificationPrefs {
   packLowSessions: number;
   /** Un paciente pidió reprogramar un turno. */
   rescheduleEnabled: boolean;
+  /** Un paciente reservó online y el turno espera confirmación (F12). */
+  bookingEnabled: boolean;
   /** Admin: avisos de todo el centro o solo de sus pacientes. Profe: siempre los suyos. */
   scope: "mine" | "all";
   /** Además de la app, un resumen diario por mail con los avisos nuevos. */
   emailEnabled: boolean;
   updatedAt: ISODateTime | null;
 }
+
+// ── Reservas online (F12) ───────────────────────────────────────────
+
+/** Franja de atención de un profe: un día de la semana (0 = domingo … 6 = sábado), de «HH:MM» a «HH:MM» (Buenos Aires). */
+export interface AvailabilityRule {
+  id: string;
+  coachId: string;
+  weekday: number;
+  startTime: string;
+  endTime: string;
+}
+
+/** Día bloqueado (feriado, vacaciones…): ese día no se puede reservar. */
+export interface TimeOff {
+  id: string;
+  coachId: string;
+  date: ISODate;
+  reason: string | null;
+}
+
+/** Reglas de reserva de cada profe. */
+export interface BookingSettings {
+  coachId: string;
+  /** Si los pacientes pueden reservar solos. */
+  enabled: boolean;
+  /** true: la reserva queda agendada; false: queda «Por confirmar» hasta que el profe la acepte. */
+  autoConfirm: boolean;
+  /** Duración de cada turno reservable (y paso entre horarios). */
+  slotMinutes: number;
+  /** Anticipación mínima para reservar, en horas. */
+  minNoticeHours: number;
+  /** Hasta cuántos días para adelante se puede reservar. */
+  maxDaysAhead: number;
+  /** Hasta cuántas horas antes el paciente puede cancelar. */
+  cancelHours: number;
+  /** Tipos de turno que el paciente puede reservar. */
+  types: AppointmentType[];
+  updatedAt: ISODateTime | null;
+}
+
+/** Horarios y reglas de un profe. */
+export type CoachSchedule = { settings: BookingSettings; rules: AvailabilityRule[]; timeOff: TimeOff[] };
+
+/** Horario ocupado del profe (sin datos del paciente: es lo único que ve quien reserva). */
+export type BusySlot = { startsAt: ISODateTime; durationMin: number };

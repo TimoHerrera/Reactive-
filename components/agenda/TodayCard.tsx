@@ -16,9 +16,10 @@ export function TodayCard({ coachId }: { coachId: string | null }) {
   }, [today]);
 
   const list = (q.data?.list ?? []).filter((a) => !coachId || a.coachId === coachId);
-  const todays = onDate(list, today).filter((a) => a.status !== "cancelado");
+  const todays = onDate(list, today).filter((a) => a.status !== "cancelado" && a.status !== "pendiente");
   const next = nextAppointment(todays);
   const requests = list.filter((a) => a.status === "reprogramacion_pedida");
+  const bookings = list.filter((a) => a.status === "pendiente");
   const name = (id: string) => q.data?.names.get(id) ?? "Paciente";
 
   return (
@@ -43,6 +44,26 @@ export function TodayCard({ coachId }: { coachId: string | null }) {
         </span>
         <span aria-hidden="true" className="shrink-0 text-[1.25rem]">→</span>
       </Link>
+      {bookings.length > 0 && (
+        <Link
+          href="/coach/agenda"
+          className="flex min-h-[56px] items-center justify-between gap-3 rounded-lg border border-warning bg-warning/10 px-4 py-3 hover:bg-warning/15"
+        >
+          <span className="min-w-0">
+            <span className="block text-title-sm text-warning">
+              {bookings.length === 1 ? "1 reserva por confirmar" : `${bookings.length} reservas por confirmar`}
+            </span>
+            <span className="block truncate text-small text-muted">
+              {bookings
+                .slice(0, 2)
+                .map((a) => name(a.clientId))
+                .join(", ")}
+              {bookings.length > 2 ? ` y ${bookings.length - 2} más` : ""}
+            </span>
+          </span>
+          <span aria-hidden="true" className="shrink-0 text-[1.25rem]">→</span>
+        </Link>
+      )}
       {requests.length > 0 && (
         <Link
           href="/coach/agenda"

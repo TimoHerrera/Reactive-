@@ -1,17 +1,19 @@
 import { expect, test } from "@playwright/test";
 import { logoutCoach, quickLogin } from "./helpers";
 
-// F11 · Avisos del profe. Lunes 19/10/2026 (Buenos Aires). Con los avisos de fábrica, Nico tiene 4:
-// Sofía (vence en 3 días), Federico (sin pagar), Tomás (terminó el pack) y Joaquín (pidió reprogramar).
+// F11 · Avisos del profe. Lunes 19/10/2026 (Buenos Aires). Con los avisos de fábrica, Nico tiene 5:
+// Sofía (vence en 3 días), Federico (sin pagar), Tomás (terminó el pack), Joaquín (pidió reprogramar)
+// y Valentina (reservó online un turno por confirmar, F12).
 test.beforeEach(async ({ page }) => {
   await page.clock.setFixedTime(new Date("2026-10-19T10:00:00-03:00"));
 });
 
 test("el profe ve sus avisos, los marca como vistos y elige cuándo le llegan", async ({ page }) => {
   await quickLogin(page, "Nico (profe)");
-  await page.getByRole("link", { name: "Avisos: 4 nuevos" }).click();
+  await page.getByRole("link", { name: "Avisos: 5 nuevos" }).click();
   await expect(page.getByRole("heading", { name: "Avisos" })).toBeVisible();
-  await expect(page.getByText("4 nuevos")).toBeVisible();
+  await expect(page.getByText("5 nuevos")).toBeVisible();
+  await expect(page.getByRole("button", { name: /Valentina reservó un turno/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /A Sofía R\. le vence la cuota en 3 días/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /Federico A\. sigue sin pagar/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /Tomás L\. terminó su pack/ })).toBeVisible();
@@ -21,17 +23,17 @@ test("el profe ve sus avisos, los marca como vistos y elige cuándo le llegan", 
   await page.getByRole("button", { name: /Federico A\. sigue sin pagar/ }).click();
   await expect(page).toHaveURL(/\/coach\/clientes\/.+\?tab=pagos$/);
   await page.goto("/coach/avisos");
-  await expect(page.getByText("3 nuevos")).toBeVisible();
+  await expect(page.getByText("4 nuevos")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Vistos" })).toBeVisible();
 
   // Mis avisos: avisar 2 días antes (Sofía vence en 3 → todavía no) y sin reprogramaciones.
   await page.getByRole("link", { name: "Configurar mis avisos" }).click();
   await expect(page.getByRole("heading", { name: "Mis avisos" })).toBeVisible();
-  await expect(page.getByText("Con esta configuración, hoy tendrías 4 avisos.")).toBeVisible();
+  await expect(page.getByText("Con esta configuración, hoy tendrías 5 avisos.")).toBeVisible();
   await page.getByRole("button", { name: "Menos días antes" }).click();
   await expect(page.getByLabel("días antes", { exact: true })).toHaveValue("2");
   await page.getByRole("checkbox", { name: /Pedidos de reprogramación/ }).uncheck();
-  await expect(page.getByText("Con esta configuración, hoy tendrías 2 avisos.")).toBeVisible();
+  await expect(page.getByText("Con esta configuración, hoy tendrías 3 avisos.")).toBeVisible();
   await expect(page.getByText("Cuota por vencer: 2 días antes del vencimiento.")).toBeVisible();
   // Venció y no pagó: a los 3 días y sin repetir.
   await page.getByLabel("días después", { exact: true }).fill("3");
@@ -44,7 +46,7 @@ test("el profe ve sus avisos, los marca como vistos y elige cuándo le llegan", 
   await page.reload();
   await expect(page.getByLabel("días antes", { exact: true })).toHaveValue("2");
   await page.goto("/coach/avisos");
-  await expect(page.getByText("2 nuevos")).toBeVisible();
+  await expect(page.getByText("3 nuevos")).toBeVisible();
   await expect(page.getByRole("button", { name: /Sofía/ })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /Federico A\. no pagó/ })).toBeVisible();
 

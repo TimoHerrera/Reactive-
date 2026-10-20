@@ -25,6 +25,9 @@ function load(): Db {
       saved.clientPlans ??= seed.clientPlans;
       saved.payments ??= seed.payments;
       saved.settings ??= seed.settings;
+      saved.bookingSettings ??= seed.bookingSettings;
+      saved.availabilityRules ??= seed.availabilityRules;
+      saved.timeOff ??= seed.timeOff;
       saved.notificationPrefs ??= [];
       saved.notificationSeen ??= [];
       saved.inviteCodes ??= [];

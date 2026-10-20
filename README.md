@@ -97,7 +97,7 @@ npx supabase link --project-ref <ref-del-proyecto>
 npx supabase db push
 ```
 
-Opción B, a mano: en **SQL Editor**, pegá y ejecutá en orden los archivos de `supabase/migrations/` (`0001_schema.sql` → `0012_avisos.sql`).
+Opción B, a mano: en **SQL Editor**, pegá y ejecutá en orden los archivos de `supabase/migrations/` (`0001_schema.sql` → `0013_reservas.sql`).
 
 ### 3. Datos de demo (opcional, SOLO staging)
 
@@ -156,6 +156,29 @@ Desde ahí el admin suma el resto del equipo en **Equipo**, y los profes invitan
 - **Admin**: resumen del mes (cobrado, pendiente, vencido y total por profe) y exportar los pagos a Excel o CSV.
 - **Paciente** (solo si está activado): en Perfil, «Tu cuota: al día» o cuándo vence, con el alias. Nunca ve datos de otros.
 - RLS (`0011_pagos.sql`): el profe ve y registra los pagos de sus pacientes, el admin todos; el paciente solo lee su plan y sus pagos si el ajuste está activado. Sin pagos online por ahora (Mercado Pago queda para más adelante).
+
+## Reservas online de turnos (F12)
+
+- **Paciente — pestaña Turnos** (`/app/turnos`, tab bar: Hoy · Mi Rutina · Turnos · Ejercicios · Perfil):
+  - elige tipo, día (tira deslizable con los horarios libres de cada día) y horario (mañana / tarde);
+  - confirma con una nota opcional; queda **por confirmar** o **agendado**, según la regla del profe;
+  - «Mis turnos»: una reserva sin confirmar se retira hasta que empiece; un turno agendado se cancela hasta N h antes;
+  - en Hoy, la tarjeta de próximo turno muestra «Por confirmar» y lleva a reservar.
+- **Profe — Mis horarios** (`/coach/agenda/horarios`, desde la Agenda o el menú del avatar):
+  - reservas online sí/no;
+  - franjas por día de la semana (varias por día, «Copiar el lunes a toda la semana»);
+  - duración del turno (30/45/60/90 min) y tipos que se pueden reservar;
+  - confirmación automática o manual, anticipación mínima (h), hasta cuántos días para adelante y plazo para cancelar (h);
+  - días bloqueados (feriados, vacaciones) y vista previa de los horarios libres de la semana;
+  - el admin elige de qué profe edita los horarios.
+- **Por confirmar:** estado nuevo `pendiente`. Aparece en la Agenda («Reservas por confirmar», con Confirmar / Rechazar), en la tarjeta del turno, en el Panel y en Avisos (F11, regla «Reservas por confirmar»).
+- **Horarios libres** (`lib/agenda/booking.ts`): cada franja se parte en turnos de la duración elegida; se descartan días bloqueados, los que no cumplen la anticipación o están fuera de rango, y los que se pisan con cualquier turno del profe (salvo cancelados).
+- **Supabase (`0013_reservas.sql`):** `booking_settings`, `availability_rules`, `time_off` (RLS: lee el profe, sus pacientes y el admin; escribe el profe o el admin) y RPCs:
+  - `book_appointment`: el paciente **no inserta turnos**; la función valida franja, alineación, reglas, día bloqueado y superposición con un candado por profe (sin dobles reservas);
+  - `coach_busy`: ocupación del profe **sin datos de otros pacientes**;
+  - `cancel_my_appointment` y `save_schedule` (guarda todo en una transacción y rechaza franjas que se pisan).
+  - El trigger de F9 ya no pisa el profe cuando el que crea el turno es el paciente.
+- Validado en PGlite: 34 chequeos (dobles reservas, franjas, feriados, plazos, tipos, permisos por rol y que el paciente no vea turnos ajenos).
 
 ## Avisos del profe (F11)
 
@@ -226,6 +249,7 @@ Cubren:
 - **Equipo:** el admin invita a un profe → el profe activa su cuenta con el link → ve el Panel; activación con código; un profe no puede entrar a «Equipo».
 - **Cámara** (`e2e/camara.spec.ts`): con el permiso dado graba, revisa y usa el video; sin permiso muestra «Habilitar cámara»; bloqueada explica cómo habilitarla. Usa el Chrome instalado (perfil temporal y cámara simulada), porque el Chromium liviano de Playwright no tiene cámara.
 - **Dos profes:** Nico carga una rutina → la clienta ve «Cargada por Nico R.»; Jano (nuevo) no ve los clientes de Nico ni los abre por URL, pero usa ejercicios y plantillas; el admin ve a todos y filtra por profe.
+- **Reservas:** la paciente reserva un horario libre, el profe la confirma desde el Panel/Agenda y ella la ve agendada; el profe edita sus horarios (franjas que se pisan no se guardan) y, si apaga las reservas, la paciente no puede reservar.
 - **Pagos** y **Avisos:** cobros, registrar un pago, WhatsApp de cobro; avisos de fábrica, marcar como vistos, cambiar los días y que se guarde por profe.
 - **Usuarios:** email repetido (con otras mayúsculas) no se crea y ofrece «Ver ficha»; el profe desactiva a su cliente (no entra, se oculta, filtro «Desactivados», «Reactivar»); el admin elimina un cliente escribiendo su nombre y restablece la demo; el profe elimina a su propio cliente y Caro no ve ni puede borrar a los de Nico; eliminar a un profe con clientes exige reasignarlos.
 
@@ -234,7 +258,7 @@ El reporte HTML queda en `playwright-report/` (`npx playwright show-report`).
 ## Rutas útiles
 
 - `/`: splash · `/login` · `/recuperar` · `/nueva-contrasena` · `/solicitar-acceso` · `/activar`
-- `/app`: cliente (Hoy · Mi Rutina · Ejercicios · Perfil)
+- `/app`: cliente (Hoy · Mi Rutina · Turnos · Ejercicios · Perfil)
 - `/coach`: profe/admin (Panel · Clientes · Rutinas · Ejercicios) · `/coach/perfil` · `/coach/equipo` (admin)
 - `/dev/ui`: catálogo de componentes del design system
 
@@ -252,3 +276,4 @@ El reporte HTML queda en `playwright-report/` (`npx playwright show-report`).
 - [x] **F9**: agenda de turnos (Día/Semana, recurrentes, superposición, reprogramación, .ics y recordatorios por WhatsApp)
 - [x] **F10**: pagos y recordatorios de cobro (planes, estados, packs, WhatsApp, ajustes, resumen y exportación)
 - [x] **F11**: avisos del profe configurables (N días antes, N días después y cada M, pack con N sesiones, reprogramaciones), campanita y mail diario opcional
+- [x] **F12**: reservas online de turnos (horarios del profe, reglas, días bloqueados, reserva y cancelación del paciente, confirmación del profe)

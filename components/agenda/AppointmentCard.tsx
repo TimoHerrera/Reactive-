@@ -34,7 +34,7 @@ export function AppointmentCard({ appointment: a, clientName, coachName, showCoa
       aria-label={`${baTime(a.startsAt)} · ${clientName}`}
       className={cn(
         "rounded-lg border bg-surface p-4",
-        a.status === "reprogramacion_pedida" ? "border-warning/70" : "border-line",
+        a.status === "reprogramacion_pedida" || a.status === "pendiente" ? "border-warning/70" : "border-line",
         closed && "opacity-70",
       )}
     >
@@ -55,6 +55,11 @@ export function AppointmentCard({ appointment: a, clientName, coachName, showCoa
             {showCoach && coachName ? ` · ${coachName}` : ""}
           </p>
           {a.notes && <p className="mt-1 text-small text-muted">{a.notes}</p>}
+          {a.status === "pendiente" && (
+            <p className="mt-2 rounded-sm bg-warning/10 px-3 py-2 text-small">
+              <strong className="text-warning">Reservó online.</strong> Confirmalo o rechazalo.
+            </p>
+          )}
           {a.status === "reprogramacion_pedida" && (
             <p className="mt-2 rounded-sm bg-warning/10 px-3 py-2 text-small">
               <strong className="text-warning">Pidió reprogramar.</strong>
@@ -84,6 +89,16 @@ export function AppointmentCard({ appointment: a, clientName, coachName, showCoa
         </div>
       ) : (
         <div className="mt-3 flex flex-wrap gap-2">
+          {a.status === "pendiente" && (
+            <>
+              <button type="button" className={cn(btn, "border-transparent bg-ink text-bg hover:bg-ink/90")} disabled={busy} onClick={() => onStatus("agendado", "this")}>
+                Confirmar
+              </button>
+              <button type="button" className={btn} disabled={busy} onClick={() => onStatus("cancelado", "this")}>
+                Rechazar
+              </button>
+            </>
+          )}
           {(a.status === "agendado" || a.status === "reprogramacion_pedida") && (
             <>
               <button type="button" className={cn(btn, "border-success/60 text-success")} disabled={busy || !past} title={past ? undefined : "Todavía no empezó"} onClick={() => onStatus("asistio", "this")}>
